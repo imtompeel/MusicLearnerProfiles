@@ -165,6 +165,7 @@ export const ClassSelection: React.FC<ClassSelectionProps> = ({
             <option value="Freesound Session">Freesound Session</option>
             <option value="My Creativity">My Creativity</option>
             <option value="Class Planning Session">Class Planning Session</option>
+            <option value="Sound Matching Session">Sound Matching Session</option>
           </select>
         </div>
         <button 

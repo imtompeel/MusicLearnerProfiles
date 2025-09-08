@@ -5,6 +5,7 @@ import { StudentSection } from '../components/StudentSection';
 import { FreesoundSession } from '../components/FreesoundSession';
 import { CreativitySession } from '../components/CreativitySession';
 import { ClassPlanningSession } from '../components/ClassPlanningSession';
+import { SoundMatchingSession } from '../components/SoundMatchingSession';
 import { Status } from '../components/Status';
 import { useStudentData } from '../hooks/useStudentData';
 import { useStatus } from '../hooks/useStatus';
@@ -102,6 +103,16 @@ export const TeacherInterface: React.FC = () => {
     return (
       <div className="container">
         <ClassPlanningSession onBack={handleBackToSessions} currentClass={currentClass} />
+        <Status message={status.message} type={status.type} />
+      </div>
+    );
+  }
+
+  // Render Sound Matching Session if selected
+  if (currentSession === 'Sound Matching Session') {
+    return (
+      <div className="container">
+        <SoundMatchingSession onBack={handleBackToSessions} currentClass={currentClass} />
         <Status message={status.message} type={status.type} />
       </div>
     );
