@@ -58,7 +58,15 @@ class FreesoundService {
   }
 
   // Search for sounds by category and keywords
-  async searchSounds(query: string, category?: string, limit: number = 20, antiTerms?: string[], maxDuration: number = 10, minDuration: number = 1.5): Promise<FreesoundResult[]> {
+  async searchSounds(
+    query: string,
+    category?: string,
+    limit: number = 20,
+    antiTerms?: string[],
+    maxDuration: number = 10,
+    minDuration: number = 1.5,
+    filterExtras?: string
+  ): Promise<FreesoundResult[]> {
     // Build the search query with optional anti-terms
     let searchQuery = category ? `${query} ${category}` : query;
     
@@ -66,12 +74,16 @@ class FreesoundService {
       searchQuery += ' ' + antiTerms.map(term => `-${term}`).join(' ');
     }
     
+    const baseFilter = `duration:[${minDuration} TO ${maxDuration}]`;
+    const combinedFilter = filterExtras ? `${baseFilter} ${filterExtras}` : baseFilter;
+
     const params: Record<string, string> = {
       query: searchQuery,
       fields: 'id,name,description,url,previews,tags,duration,filesize,username,license',
       page_size: limit.toString(),
-      sort: 'score', // Sort by relevance score instead of rating
-      filter: `duration:[${minDuration} TO ${maxDuration}]`, // Filter for sounds within duration range
+      // Prefer highly rated sounds for better correctness
+      sort: 'rating_desc',
+      filter: combinedFilter, // Filter for duration and any extra filters
     };
 
     console.log(`Searching Freesound with query: "${searchQuery}" (duration: ${minDuration}-${maxDuration}s)`);
@@ -79,6 +91,116 @@ class FreesoundService {
     console.log(`Found ${response.results.length} results for "${searchQuery}"`);
     
     return response.results;
+  }
+
+  // Post-filter results: strict on excludeTags, flexible on includeTags
+  // - Exclude: candidate must have NONE of excludeTags
+  // - Include: require primary tag (if provided) and at least `minInclude` of includeTags overall
+  private filterByTags(
+    results: FreesoundResult[],
+    includeTags: string[],
+    excludeTags: string[],
+    options?: { primaryTag?: string; minInclude?: number; antiTerms?: string[] }
+  ): FreesoundResult[] {
+    const include = includeTags.map(t => t.toLowerCase());
+    const exclude = excludeTags.map(t => t.toLowerCase());
+    const anti = (options?.antiTerms || []).map(t => t.toLowerCase());
+    const primary = options?.primaryTag?.toLowerCase().trim();
+    const minInclude = Math.max(0, options?.minInclude ?? Math.min(2, include.length || 0));
+
+    return results.filter(r => {
+      const tags = (r.tags || []).map(t => t.toLowerCase());
+      const name = (r.name || '').toLowerCase();
+      // strict: no excluded tags or anti terms in either tags or name
+      const hasForbidden = exclude.some(t => tags.includes(t) || name.includes(t))
+        || anti.some(t => tags.includes(t) || name.includes(t));
+      if (hasForbidden) return false;
+
+      if (include.length === 0) return true;
+
+      // primary must match if provided
+      if (primary && !(tags.includes(primary) || name.includes(primary))) return false;
+
+      const includeMatchCount = include.reduce((acc, t) => acc + (tags.includes(t) ? 1 : 0), 0);
+      return includeMatchCount >= (primary ? Math.max(1, minInclude) : Math.max(1, minInclude));
+    });
+  }
+
+  // Strict search: use tag-based filtering plus anti-terms; prefer rating
+  async searchSoundsStrict(query: string, options?: {
+    includeTags?: string[];
+    excludeTags?: string[];
+    category?: string;
+    limit?: number;
+    maxDuration?: number;
+    minDuration?: number;
+    antiTerms?: string[];
+    categoryFilter?: string; // Freesound Broad Taxonomy top-level category
+    subcategoryFilter?: string; // Broad Taxonomy second-level
+  }): Promise<FreesoundResult[]> {
+    const {
+      includeTags = [],
+      excludeTags = [],
+      category,
+      limit = 20,
+      maxDuration = 10,
+      minDuration = 0.5,
+      antiTerms = []
+    } = options || {};
+
+    // Use only the include/exclude tags provided by the caller (component/question)
+    const finalInclude = Array.from(new Set(includeTags));
+    const finalExclude = Array.from(new Set(excludeTags));
+
+    // Reintroduce global anti-terms to avoid common mismatches
+    const extraAnti: string[] = [
+      'loop', 'remix',
+    ];
+    const finalAnti = Array.from(new Set([...antiTerms, ...finalExclude, ...extraAnti]));
+
+    // Bias query with include tags to improve relevance
+    const biasedQuery = [query, ...finalInclude].join(' ').trim();
+
+    // First attempt with biased query
+    const filterExtrasParts: string[] = [];
+    if (options?.categoryFilter) filterExtrasParts.push(`category:"${options.categoryFilter}"`);
+    if (options?.subcategoryFilter) filterExtrasParts.push(`subcategory:"${options.subcategoryFilter}"`);
+    const filterExtras = filterExtrasParts.join(' ');
+
+    let raw = await this.searchSounds(biasedQuery, category, limit, finalAnti, maxDuration, minDuration, filterExtras || undefined);
+    let filtered = this.filterByTags(raw, finalInclude, finalExclude, { primaryTag: finalInclude[0], minInclude: 2, antiTerms: finalAnti });
+
+    if (filtered.length > 0) return filtered;
+
+    // Second attempt: try only include tags if
+    if (finalInclude.length > 0) {
+      const includeOnlyQuery = finalInclude.join(' ');
+      raw = await this.searchSounds(includeOnlyQuery, category, limit, finalAnti, maxDuration, minDuration, filterExtras || undefined);
+      filtered = this.filterByTags(raw, finalInclude, finalExclude, { primaryTag: finalInclude[0], minInclude: 1, antiTerms: finalAnti });
+      if (filtered.length > 0) return filtered;
+      // If still nothing and include tags exist, return empty to avoid unrelated picks
+      return [];
+    }
+
+    // No include tags: return raw as last resort
+    return raw;
+  }
+
+  // Helper: pick the best single sound for a given instrument/label
+  async getBestSoundForLabel(label: string, options?: {
+    includeTags?: string[];
+    excludeTags?: string[];
+    maxDuration?: number;
+    minDuration?: number;
+  }): Promise<FreesoundResult | null> {
+    const results = await this.searchSoundsStrict(label, {
+      includeTags: options?.includeTags,
+      excludeTags: options?.excludeTags,
+      limit: 10,
+      maxDuration: options?.maxDuration ?? 8,
+      minDuration: options?.minDuration ?? 0.5,
+    });
+    return results[0] ?? null;
   }
 
   // Helper method to add delay between requests
@@ -162,8 +284,8 @@ class FreesoundService {
     return response as unknown as FreesoundResult;
   }
 
-  // Play a sound from Freesound with fade-in
-  async playSound(sound: FreesoundResult): Promise<HTMLAudioElement> {
+  // Play a sound from Freesound with configurable fade-in
+  async playSound(sound: FreesoundResult, options?: { fadeInMs?: number }): Promise<HTMLAudioElement> {
     try {
       // Debug: Log the sound object to see what preview URLs are available
       console.log('Playing sound:', sound.name);
@@ -222,23 +344,31 @@ class FreesoundService {
         }, 10000);
       });
       
-      // Start with volume at 0 for fade-in
-      audio.volume = 0;
+      const fadeInDuration = typeof options?.fadeInMs === 'number' ? options.fadeInMs : 500;
       
-      // Play the audio
-      console.log('Playing audio with fade-in:', sound.name);
-      await audio.play();
-      
-      // Fade in over 0.5 seconds
-      const fadeInDuration = 500; // milliseconds
-      const fadeInSteps = 20;
-      const stepDuration = fadeInDuration / fadeInSteps;
-      const volumeStep = 1 / fadeInSteps;
-      
-      for (let i = 0; i <= fadeInSteps; i++) {
-        setTimeout(() => {
-          audio.volume = Math.min(i * volumeStep, 1);
-        }, i * stepDuration);
+      if (fadeInDuration <= 0) {
+        // No fade: play at full volume immediately
+        audio.volume = 1;
+        console.log('Playing audio without fade-in:', sound.name);
+        await audio.play();
+      } else {
+        // Start with volume at 0 for fade-in
+        audio.volume = 0;
+        
+        // Play the audio
+        console.log('Playing audio with fade-in:', sound.name);
+        await audio.play();
+        
+        // Fade in over configured duration
+        const fadeInSteps = 20;
+        const stepDuration = fadeInDuration / fadeInSteps;
+        const volumeStep = 1 / fadeInSteps;
+        
+        for (let i = 0; i <= fadeInSteps; i++) {
+          setTimeout(() => {
+            audio.volume = Math.min(i * volumeStep, 1);
+          }, i * stepDuration);
+        }
       }
       
       // Return the audio element for tracking

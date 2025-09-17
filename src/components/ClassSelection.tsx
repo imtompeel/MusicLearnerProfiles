@@ -22,6 +22,21 @@ export const ClassSelection: React.FC<ClassSelectionProps> = ({
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editClassName, setEditClassName] = useState('');
   const [editClassSoI, setEditClassSoI] = useState('');
+  
+  // Dev override: allow bypassing class loading issues on localhost/dev builds
+  const isDevEnvironment =
+    (typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname)) ||
+    (typeof import.meta !== 'undefined' && Boolean((import.meta as any)?.env?.DEV));
+
+  const handleUseDevClass = () => {
+    const devClass: CurrentClass = {
+      name: 'Dev Test Class',
+      soiMedian: 'R3.1'
+    };
+    setSelectedClass(devClass.name);
+    onClassSelect(devClass);
+    showSuccess('Dev override enabled: using "Dev Test Class"');
+  };
 
   const handleClassChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const className = e.target.value;
@@ -168,6 +183,14 @@ export const ClassSelection: React.FC<ClassSelectionProps> = ({
             <option value="Sound Matching Session">Sound Matching Session</option>
           </select>
         </div>
+        {isDevEnvironment && (
+          <button 
+            className="btn-teacher" 
+            onClick={handleUseDevClass}
+          >
+            🛠️ Dev: Use Test Class
+          </button>
+        )}
         <button 
           className="btn-teacher" 
           onClick={refreshClasses}

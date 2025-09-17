@@ -3,12 +3,14 @@ import type { MusicQuestion } from '../../types';
 import { getPatternImageSources } from '../../utils/images';
 import { playNote, noteToFrequency } from '../../utils/audio';
 import { useFreesound } from '../../hooks/useFreesound';
+import { getTaxonomyCandidatesForTerm, getAntiTermsForTerm, getIncludeTagsForTerm } from '../../utils/freesoundTaxonomy';
 import type { FreesoundResult } from '../../utils/freesound';
 
 interface SoundMatchingQuestionProps {
   question: MusicQuestion;
   preferences: { [key: string]: any };
   onSelectPreference: (questionId: string, value: any) => void;
+  reloadToken?: number; // forces reload when changed
 }
 
 interface MatchingState {
@@ -31,7 +33,8 @@ interface ImageCard {
 
 export const SoundMatchingQuestion: React.FC<SoundMatchingQuestionProps> = ({
   question,
-  onSelectPreference
+  onSelectPreference,
+  reloadToken
 }) => {
   const [matchingState, setMatchingState] = useState<MatchingState>({
     selectedSound: null,
@@ -46,7 +49,11 @@ export const SoundMatchingQuestion: React.FC<SoundMatchingQuestionProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [imageSources, setImageSources] = useState<{ [key: string]: any }>({});
 
-  const { getOneSoundPerTerm, playSound, isLoading: soundsLoading } = useFreesound();
+  const { searchSoundsStrict, playSound, isLoading: soundsLoading } = useFreesound();
+
+  // Tags-based intent verification disabled while iterating on taxonomy-only results
+
+  // Tags and include/exclude disabled. We selectively apply taxonomy filters per term.
 
   // Load sounds from Freesound and images from Unsplash
   useEffect(() => {
@@ -56,10 +63,47 @@ export const SoundMatchingQuestion: React.FC<SoundMatchingQuestionProps> = ({
       setIsLoading(true);
       try {
         // Load images and sounds in parallel
-        const [sounds, imageSources] = await Promise.all([
-          getOneSoundPerTerm(question.pattern_sounds, undefined, undefined, question.max_duration || 10, question.min_duration || 1.5),
-          getPatternImageSources()
-        ]);
+        const imageSources = await getPatternImageSources(question.pattern_images, 240, 240);
+        // For each term, fetch a strict list and pick the best verified result, with fallbacks
+        const sounds: FreesoundResult[] = [];
+        for (const term of question.pattern_sounds) {
+          let candidates: FreesoundResult[] = [];
+          const taxonomyCandidates = getTaxonomyCandidatesForTerm(term);
+          const antiTerms = getAntiTermsForTerm(term);
+          const isVacuum = /\b(vacuum|vaccum|hoover)\b/i.test(term);
+          const includeTags = isVacuum ? ['vacuum','hoover','cleaner'] : getIncludeTagsForTerm(term);
+          for (const tax of taxonomyCandidates) {
+            const attempt = await searchSoundsStrict(term, {
+              maxDuration: question.max_duration || 12,
+              minDuration: question.min_duration || 0.2,
+              antiTerms,
+              ...(includeTags.length ? { includeTags } : {} as any),
+              ...(tax.categoryFilter ? { categoryFilter: tax.categoryFilter } : {} as any),
+              ...(tax.subcategoryFilter ? { subcategoryFilter: tax.subcategoryFilter } : {} as any)
+            });
+            if (attempt && attempt.length > 0) {
+              candidates = attempt;
+              break;
+            }
+          }
+
+          // Final fallback: no taxonomy
+          if (!candidates || candidates.length === 0) {
+            candidates = await searchSoundsStrict(term, {
+              maxDuration: question.max_duration || 12,
+              minDuration: question.min_duration || 0.2,
+              antiTerms,
+              ...(includeTags.length ? { includeTags } : {} as any)
+            });
+          }
+
+          const pick = candidates[0];
+          if (pick) sounds.push(pick);
+        }
+
+        if (!sounds || sounds.length === 0) {
+          throw new Error('No sounds found for matching after applying fallbacks.');
+        }
         
         setImageSources(imageSources);
         
@@ -86,11 +130,18 @@ export const SoundMatchingQuestion: React.FC<SoundMatchingQuestionProps> = ({
         })));
         
         // Create image cards with their correct sound mappings
-        const imageCards: ImageCard[] = question.pattern_images.map((imageKey, index) => ({
-          image: imageKey,
-          label: question[`option${index + 1}` as keyof MusicQuestion] as string,
-          correctSoundId: (sounds[index] || sounds[0]).id.toString()
-        }));
+        const imageCards: ImageCard[] = question.pattern_images.map((imageKey, index) => {
+          const fallbackSound = sounds[0];
+          const targetSound = sounds[index] || fallbackSound;
+          if (!targetSound) {
+            throw new Error('Unable to assign a sound to image card: no fallback sound available.');
+          }
+          return {
+            image: imageKey,
+            label: question[`option${index + 1}` as keyof MusicQuestion] as string,
+            correctSoundId: targetSound.id.toString()
+          };
+        });
         
         console.log('🖼️ IMAGE CARDS:', imageCards.map(ic => ({
           image: ic.image,
@@ -110,7 +161,7 @@ export const SoundMatchingQuestion: React.FC<SoundMatchingQuestionProps> = ({
     };
 
     loadMatchingData();
-  }, [question, getOneSoundPerTerm]);
+  }, [question, searchSoundsStrict, reloadToken]);
 
   const handleSoundCardClick = async (sound: FreesoundResult) => {
     const soundId = sound.id;
@@ -142,7 +193,12 @@ export const SoundMatchingQuestion: React.FC<SoundMatchingQuestionProps> = ({
       
       // Start playing the new sound
       try {
-        const audioElement = await playSound(sound);
+        // Detect percussive/attack-heavy by tags/name for no-fade playback
+        const name = (sound.name || '').toLowerCase();
+        const tags = (sound.tags || []).map(t => t.toLowerCase());
+        const isAttackCritical = ['drum','snare','kick','clap','hit','perc','percussion','piano','pluck','tap'].some(k => name.includes(k) || tags.includes(k));
+        const fadeInMs = isAttackCritical ? 0 : 400;
+        const audioElement = await playSound(sound, { fadeInMs });
         setPlayingSounds(prev => ({
           ...prev,
           [soundId]: audioElement
@@ -204,12 +260,14 @@ export const SoundMatchingQuestion: React.FC<SoundMatchingQuestionProps> = ({
           
           // Check if all pairs are matched
           if (newState.matchedPairs.length === imageCards.length) {
-            // All pairs matched! Save the result
-            onSelectPreference(question.question_number, {
-              type: 'sound_matching',
-              matchedPairs: newState.matchedPairs,
-              completed: true
-            });
+            // All pairs matched! Save the result (defer to avoid setState during render warning)
+            setTimeout(() => {
+              onSelectPreference(question.question_number, {
+                type: 'sound_matching',
+                matchedPairs: newState.matchedPairs,
+                completed: true
+              });
+            }, 0);
           }
         } else {
           // Incorrect match - flash red
@@ -325,6 +383,7 @@ export const SoundMatchingQuestion: React.FC<SoundMatchingQuestionProps> = ({
           <div className="image-cards">
             {imageCards.map((imageCard) => {
               const imageSource = imageSources[imageCard.image] || { url: '', alt: imageCard.image, fallback: '🖼️' };
+              const hasImage = Boolean(imageSource.url);
               return (
                 <div
                   key={`image-${imageCard.image}`}
@@ -332,18 +391,20 @@ export const SoundMatchingQuestion: React.FC<SoundMatchingQuestionProps> = ({
                   onClick={() => !isImageMatched(imageCard.image) && handleImageCardClick(imageCard.image)}
                 >
                   <div className="image-container">
-                    <img 
-                      src={imageSource.url} 
-                      alt={imageSource.alt}
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                        const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
-                        if (nextElement) {
-                          nextElement.style.display = 'block';
-                        }
-                      }}
-                    />
-                    <div className="emoji-fallback" style={{ display: 'none' }}>{imageSource.fallback}</div>
+                    {hasImage && (
+                      <img 
+                        src={imageSource.url} 
+                        alt={imageSource.alt}
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
+                          if (nextElement) {
+                            nextElement.style.display = 'block';
+                          }
+                        }}
+                      />
+                    )}
+                    <div className="emoji-fallback" style={{ display: hasImage ? 'none' : 'block' }}>{imageSource.fallback}</div>
                   </div>
                   <div className="image-label">{imageCard.label}</div>
                 </div>
