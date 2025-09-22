@@ -9,7 +9,7 @@ export interface ImageSource {
 // Unsplash API for relevant images - 2025 API Standard
 // Query overrides to reduce ambiguity in results (e.g., flute vs trumpet, vacuum vs record player)
 const termQueryOverrides: { [key: string]: string } = {
-  flute: 'flute musical instrument woodwind isolated',
+  flute: 'flute isolated',
   clarinet: 'clarinet musical instrument woodwind isolated',
   saxophone: 'saxophone musical instrument isolated',
   trumpet: 'trumpet musical instrument brass isolated',
@@ -21,10 +21,9 @@ const termQueryOverrides: { [key: string]: string } = {
   shaker: 'maraca musical instrument percussion isolated',
   rain: 'rain weather icon',
   clock: 'clock face time icon',
-  vacuum: 'vacuum cleaner appliance household hoover',
-  hoover: 'vacuum cleaner appliance household',
+  vacuum: 'cleaner',
   cat: 'cat animal icon',
-  dog: 'dog animal icon',
+  dog: 'dog',
   bird: 'bird animal icon',
   cow: 'cow animal icon'
 };
