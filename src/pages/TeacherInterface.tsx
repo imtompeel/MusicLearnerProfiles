@@ -7,6 +7,8 @@ import { CreativitySession } from '../components/CreativitySession';
 import { ClassPlanningSession } from '../components/ClassPlanningSession';
 import { SoundMatchingSession } from '../components/SoundMatchingSession';
 import { Status } from '../components/Status';
+import { NowNextSession } from '../components/NowNextSession';
+import { HowAreYouFeelingSession } from '../components/HowAreYouFeelingSession';
 import { useStudentData } from '../hooks/useStudentData';
 import { useStatus } from '../hooks/useStatus';
 import { useAudio } from '../hooks/useAudio';
@@ -113,6 +115,26 @@ export const TeacherInterface: React.FC = () => {
     return (
       <div className="container">
         <SoundMatchingSession onBack={handleBackToSessions} currentClass={currentClass} />
+        <Status message={status.message} type={status.type} />
+      </div>
+    );
+  }
+
+  // Render Now & Next if selected
+  if (currentSession === 'Now & Next') {
+    return (
+      <div className="container">
+        <NowNextSession onBack={handleBackToSessions} currentClass={currentClass} />
+        <Status message={status.message} type={status.type} />
+      </div>
+    );
+  }
+
+  // Render How Are You Feeling if selected
+  if (currentSession === 'How Are You Feeling') {
+    return (
+      <div className="container">
+        <HowAreYouFeelingSession onBack={handleBackToSessions} />
         <Status message={status.message} type={status.type} />
       </div>
     );

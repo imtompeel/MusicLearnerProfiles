@@ -181,6 +181,7 @@ export const ClassSelection: React.FC<ClassSelectionProps> = ({
             <option value="My Creativity">My Creativity</option>
             <option value="Class Planning Session">Class Planning Session</option>
             <option value="Sound Matching Session">Sound Matching Session</option>
+            <option value="How Are You Feeling">How Are You Feeling</option>
           </select>
         </div>
         {isDevEnvironment && (

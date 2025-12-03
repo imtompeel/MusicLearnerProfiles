@@ -441,6 +441,24 @@ export const ClassPlanningSession: React.FC<ClassPlanningSessionProps> = ({
         totalIdeas: collectedIdeas.length,
         timestamp: new Date().toISOString()
       },
+      feelingSummary: (() => {
+        // Aggregate answers stored under 'F1' as strings like face:<id> and word:<id>
+        const all = participants.map(p => p.answers['F1']).filter(Boolean) as string[][];
+        const faceCounts: Record<string, number> = {};
+        const wordCounts: Record<string, number> = {};
+        all.forEach(arr => {
+          arr.forEach(token => {
+            if (token.startsWith('face:')) {
+              const id = token.slice(5);
+              faceCounts[id] = (faceCounts[id] || 0) + 1;
+            } else if (token.startsWith('word:')) {
+              const id = token.slice(5);
+              wordCounts[id] = (wordCounts[id] || 0) + 1;
+            }
+          });
+        });
+        return { faceCounts, wordCounts };
+      })(),
       questions: questions.map((question, index) => ({
         questionNumber: index + 1,
         questionText: question.question_text,
@@ -501,7 +519,7 @@ export const ClassPlanningSession: React.FC<ClassPlanningSessionProps> = ({
   }, [sortedParticipants, currentQuestion, sessionState.isActive]);
 
   const copyStudentJoinUrl = () => {
-    const studentUrl = generateStudentJoinUrl(sessionCode);
+    const studentUrl = generateStudentJoinUrl(sessionCode, undefined, { mode: 'feeling' });
     navigator.clipboard.writeText(studentUrl).then(() => {
       showSuccess('Student join URL copied to clipboard!');
     }).catch(() => {
@@ -513,7 +531,7 @@ export const ClassPlanningSession: React.FC<ClassPlanningSessionProps> = ({
     if (!sessionCode) return;
     
     try {
-      const studentUrl = generateStudentJoinUrl(sessionCode);
+      const studentUrl = generateStudentJoinUrl(sessionCode, undefined, { mode: 'feeling' });
       const qrCodeElement = document.getElementById('qr-code');
       if (qrCodeElement) {
         // Clear any existing QR code
@@ -737,6 +755,58 @@ export const ClassPlanningSession: React.FC<ClassPlanningSessionProps> = ({
                   )}
                 </div>
               </div>
+
+                {/* Feeling (F1) aggregates, if present */}
+                {(() => {
+                  // Compute aggregates inline for UI as well
+                  const faceCounts: Record<string, number> = {};
+                  const wordCounts: Record<string, number> = {};
+                  participants.forEach(p => {
+                    const ans = p.answers['F1'];
+                    if (Array.isArray(ans)) {
+                      ans.forEach(token => {
+                        if (typeof token === 'string') {
+                          if (token.startsWith('face:')) {
+                            const id = token.slice(5);
+                            faceCounts[id] = (faceCounts[id] || 0) + 1;
+                          } else if (token.startsWith('word:')) {
+                            const id = token.slice(5);
+                            wordCounts[id] = (wordCounts[id] || 0) + 1;
+                          }
+                        }
+                      });
+                    }
+                  });
+                  const totalF1 = Object.values(faceCounts).reduce((a, b) => a + b, 0);
+                  if (totalF1 === 0) return null;
+                  const topWords = Object.entries(wordCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+                  return (
+                    <div className="feeling-aggregates">
+                      <h3>How Are You Feeling (F1)</h3>
+                      <div className="feeling-faces">
+                        {Object.entries(faceCounts).map(([faceId, count]) => (
+                          <div key={faceId} className="face-count">
+                            <span className="face-id">{faceId}</span>
+                            <span className="count">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {topWords.length > 0 && (
+                        <div className="feeling-top-words">
+                          <h4>Top words</h4>
+                          <div className="word-counts">
+                            {topWords.map(([wordId, count]) => (
+                              <div key={wordId} className="word-count">
+                                <span className="word-id">{wordId}</span>
+                                <span className="count">{count}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
               <div className="all-questions-results">
                 {questions.map((question, questionIndex) => (

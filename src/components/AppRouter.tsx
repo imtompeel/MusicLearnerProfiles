@@ -1,7 +1,8 @@
 import React from 'react';
 import { TeacherInterface } from '../pages/TeacherInterface';
 import { StudentJoinPage } from '../pages/StudentJoinPage';
-import { isStudentMode } from '../utils/routing';
+import { isStudentMode, parseRouteParams } from '../utils/routing';
+import { StudentFeelingSession } from './StudentFeelingSession';
 
 /**
  * Main router component that determines which interface to show
@@ -10,6 +11,10 @@ import { isStudentMode } from '../utils/routing';
 export const AppRouter: React.FC = () => {
   // Check if we're in student mode
   if (isStudentMode()) {
+    const { mode } = parseRouteParams();
+    if (mode === 'feeling') {
+      return <StudentFeelingSession />;
+    }
     return <StudentJoinPage />;
   }
 

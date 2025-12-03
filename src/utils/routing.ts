@@ -7,6 +7,7 @@ export interface RouteParams {
   code?: string;
   session?: string;
   class?: string;
+  mode?: string;
 }
 
 /**
@@ -19,16 +20,25 @@ export function parseRouteParams(): RouteParams {
     student: urlParams.get('student') === 'true',
     code: urlParams.get('code') || undefined,
     session: urlParams.get('session') || undefined,
-    class: urlParams.get('class') || undefined
+    class: urlParams.get('class') || undefined,
+    mode: urlParams.get('mode') || undefined
   };
 }
 
 /**
  * Generate student join URL with session code
  */
-export function generateStudentJoinUrl(sessionCode: string, baseUrl?: string): string {
+export interface StudentJoinOptions {
+  mode?: 'feeling' | 'standard';
+}
+
+export function generateStudentJoinUrl(sessionCode: string, baseUrl?: string, options?: StudentJoinOptions): string {
   const base = baseUrl || window.location.origin;
-  return `${base}?student=true&code=${sessionCode}`;
+  const params = new URLSearchParams();
+  params.set('student', 'true');
+  params.set('code', sessionCode);
+  if (options?.mode) params.set('mode', options.mode);
+  return `${base}?${params.toString()}`;
 }
 
 /**

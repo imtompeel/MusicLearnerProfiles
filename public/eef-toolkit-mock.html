@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>EEF Teaching & Learning Toolkit — Mock</title>
+    <meta name="description" content="Static mock-up of the EEF Teaching & Learning Toolkit page." />
+    <style>
+      :root {
+        --eef-blue: #004289;
+        --eef-blue-dark: #002d5d;
+        --eef-teal: #1bb1a5;
+        --text: #1b1b1b;
+        --muted: #6b7280;
+        --border: #e5e7eb;
+        --bg: #f8fafc;
+        --card-bg: #ffffff;
+        --tag-bg: #eef2f7;
+      }
+
+      /* CSS reset (minimal) */
+      *, *::before, *::after { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+        color: var(--text);
+        background: var(--bg);
+        line-height: 1.5;
+      }
+      img { max-width: 100%; display: block; }
+      a { color: var(--eef-blue); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+
+      /* Layout */
+      .site-header {
+        background: var(--card-bg);
+        border-bottom: 1px solid var(--border);
+      }
+      .container {
+        width: min(1200px, 92vw);
+        margin: 0 auto;
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 0;
+        gap: 16px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .brand-mark {
+        width: 36px;
+        height: 36px;
+        border-radius: 6px;
+        background: linear-gradient(135deg, var(--eef-blue), var(--eef-teal));
+      }
+      .brand-name { font-weight: 700; color: var(--eef-blue-dark); }
+      .nav { display: none; gap: 16px; }
+      .nav a { color: var(--eef-blue-dark); font-weight: 500; }
+      .cta {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--eef-blue);
+        color: #fff;
+        padding: 10px 14px;
+        border-radius: 8px;
+        font-weight: 600;
+      }
+
+      @media (min-width: 900px) {
+        .nav { display: flex; }
+      }
+
+      /* Hero */
+      .hero {
+        background: linear-gradient(0deg, rgba(0,66,137,0.06), rgba(0,66,137,0.06));
+        padding: 38px 0 28px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .hero h1 {
+        margin: 0 0 8px 0;
+        font-size: clamp(28px, 4vw, 40px);
+        color: var(--eef-blue-dark);
+        letter-spacing: -0.02em;
+      }
+      .hero p { margin: 0; color: var(--muted); max-width: 70ch; }
+
+      /* Controls */
+      .controls {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 16px;
+        padding: 18px 0 8px 0;
+      }
+      .search-box {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--card-bg);
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+      .search-box input {
+        flex: 1;
+        border: none;
+        outline: none;
+        font-size: 16px;
+        background: transparent;
+      }
+      .filters {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .select {
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 8px 10px;
+      }
+
+      @media (min-width: 900px) {
+        .controls { grid-template-columns: 2fr 1fr; }
+        .filters { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      }
+
+      /* Content */
+      .content {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 20px;
+        padding: 22px 0 40px 0;
+      }
+
+      @media (min-width: 1100px) {
+        .content { grid-template-columns: 280px 1fr; align-items: start; }
+      }
+
+      .sidebar {
+        position: sticky;
+        top: 12px;
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px;
+      }
+      .sidebar h3 { margin: 4px 0 8px 0; font-size: 16px; color: var(--eef-blue-dark); }
+      .filter-group { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 10px; }
+      .checkbox { display: flex; gap: 10px; align-items: center; margin: 8px 0; }
+      .checkbox input { width: 18px; height: 18px; }
+
+      .results-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .results-head .count { color: var(--muted); }
+
+      .cards {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 16px;
+        margin-top: 8px;
+      }
+      @media (min-width: 600px) {
+        .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      }
+      @media (min-width: 900px) {
+        .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      }
+
+      .card {
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px;
+        display: grid;
+        gap: 10px;
+      }
+      .card .topline {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--tag-bg);
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: 13px;
+        color: var(--eef-blue-dark);
+        font-weight: 600;
+      }
+      .effect-size {
+        font-weight: 700;
+        color: var(--eef-teal);
+      }
+      .card h4 { margin: 0; font-size: 18px; color: var(--eef-blue-dark); }
+      .summary { color: var(--muted); font-size: 14px; }
+      .meta { display: flex; flex-wrap: wrap; gap: 8px; }
+      .meta .tag { background: var(--tag-bg); color: #334155; padding: 6px 10px; border-radius: 999px; font-size: 12px; }
+      .actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+      .btn-link { color: var(--eef-blue); font-weight: 600; }
+      .btn-secondary { border: 1px solid var(--border); background: #fff; padding: 8px 10px; border-radius: 8px; font-weight: 600; color: #334155; }
+
+      .site-footer {
+        border-top: 1px solid var(--border);
+        background: var(--card-bg);
+        color: var(--muted);
+        padding: 24px 0 40px 0;
+      }
+      .footer-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+      @media (min-width: 900px) { .footer-grid { grid-template-columns: 2fr 1fr 1fr 1fr; } }
+      .footer-title { color: var(--eef-blue-dark); font-weight: 700; margin-bottom: 10px; }
+      .footer-col a { color: #334155; display: block; margin: 6px 0; }
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true"></div>
+          <div class="brand-name">Education Endowment Foundation</div>
+        </div>
+        <nav class="nav" aria-label="Primary">
+          <a href="#">Evidence</a>
+          <a href="#">Guidance</a>
+          <a href="#">Projects</a>
+          <a href="#" class="cta">Donate</a>
+        </nav>
+      </div>
+      <div class="hero">
+        <div class="container">
+          <h1>Teaching & Learning Toolkit</h1>
+          <p>A summary of educational research to guide teachers and school leaders on how to spend to make the biggest difference to pupils’ learning.</p>
+          <div class="controls">
+            <div class="search-box" role="search">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M21 21l-4.35-4.35" stroke="#64748b" stroke-width="2" stroke-linecap="round"/><circle cx="11" cy="11" r="7" stroke="#64748b" stroke-width="2"/></svg>
+              <input type="search" placeholder="Search approaches (e.g., feedback)" aria-label="Search approaches" />
+            </div>
+            <div class="filters">
+              <select class="select" aria-label="Filter by cohort">
+                <option>All cohorts</option>
+                <option>Learners with Autism</option>
+                <option>Learners with Complex Needs</option>
+                <option>PMLD</option>
+                <option>SLD</option>
+                <option>MLD</option>
+                <option>Visually impaired</option>
+                <option>Hearing impaired</option>
+              </select>
+              <select class="select" aria-label="Filter by impact">
+                <option>Impact</option>
+                <option>Very high</option>
+                <option>High</option>
+                <option>Moderate</option>
+                <option>Low</option>
+              </select>
+              <select class="select" aria-label="Filter by cost">
+                <option>Cost</option>
+                <option>Very low</option>
+                <option>Low</option>
+                <option>Moderate</option>
+                <option>High</option>
+              </select>
+              <select class="select" aria-label="Filter by evidence strength">
+                <option>Evidence strength</option>
+                <option>Very strong</option>
+                <option>Strong</option>
+                <option>Moderate</option>
+                <option>Limited</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="container content">
+      <aside class="sidebar" aria-label="Filters">
+        <h3>Refine results</h3>
+        <div class="filter-group">
+          <strong>Cohort</strong>
+          <label class="checkbox"><input type="checkbox" /> Learners with Autism</label>
+          <label class="checkbox"><input type="checkbox" /> Learners with Complex Needs</label>
+          <label class="checkbox"><input type="checkbox" /> PMLD</label>
+          <label class="checkbox"><input type="checkbox" /> SLD</label>
+          <label class="checkbox"><input type="checkbox" /> MLD</label>
+          <label class="checkbox"><input type="checkbox" /> Visually impaired</label>
+          <label class="checkbox"><input type="checkbox" /> Hearing impaired</label>
+        </div>
+        <div class="filter-group">
+          <strong>Impact</strong>
+          <label class="checkbox"><input type="checkbox" /> Very high</label>
+          <label class="checkbox"><input type="checkbox" /> High</label>
+          <label class="checkbox"><input type="checkbox" /> Moderate</label>
+          <label class="checkbox"><input type="checkbox" /> Low</label>
+        </div>
+        <div class="filter-group">
+          <strong>Cost</strong>
+          <label class="checkbox"><input type="checkbox" /> Very low</label>
+          <label class="checkbox"><input type="checkbox" /> Low</label>
+          <label class="checkbox"><input type="checkbox" /> Moderate</label>
+          <label class="checkbox"><input type="checkbox" /> High</label>
+        </div>
+      </aside>
+
+      <section>
+        <div class="results-head">
+          <div class="count">Showing 6 approaches</div>
+          <select class="select" aria-label="Sort results">
+            <option>Sort: A → Z</option>
+            <option>Impact (high → low)</option>
+            <option>Cost (low → high)</option>
+          </select>
+        </div>
+
+        <div class="cards">
+          <!-- Card example: Feedback -->
+          <article class="card">
+            <div class="topline">
+              <span class="pill">Impact: <span class="effect-size">+7 months</span></span>
+              <span class="pill" aria-label="Cost">£</span>
+            </div>
+            <h4>Feedback</h4>
+            <p class="summary">Providing high-quality feedback on pupil work and learning processes. Particularly effective when focused on specific next steps.</p>
+            <div class="meta">
+              <span class="tag">High impact</span>
+              <span class="tag">Low cost</span>
+              <span class="tag">Strong evidence</span>
+              <span class="tag">Primary, Secondary</span>
+            </div>
+            <div class="actions">
+              <a href="#" class="btn-link">Explore summary</a>
+              <button class="btn-secondary" type="button">Implementation</button>
+            </div>
+          </article>
+
+          <!-- Collaborative learning -->
+          <article class="card">
+            <div class="topline">
+              <span class="pill">Impact: <span class="effect-size">+5 months</span></span>
+              <span class="pill">£</span>
+            </div>
+            <h4>Collaborative learning</h4>
+            <p class="summary">Structured group work where learners support each other to make progress on a shared task, with defined roles and goals.</p>
+            <div class="meta">
+              <span class="tag">Moderate to high impact</span>
+              <span class="tag">Low cost</span>
+              <span class="tag">Moderate evidence</span>
+            </div>
+            <div class="actions">
+              <a href="#" class="btn-link">Explore summary</a>
+              <button class="btn-secondary" type="button">Implementation</button>
+            </div>
+          </article>
+
+          <!-- One to one tuition -->
+          <article class="card">
+            <div class="topline">
+              <span class="pill">Impact: <span class="effect-size">+5 months</span></span>
+              <span class="pill">£££</span>
+            </div>
+            <h4>One to one tuition</h4>
+            <p class="summary">Intensive individual support to help pupils catch up or keep up, usually led by a teacher or trained tutor.</p>
+            <div class="meta">
+              <span class="tag">High impact</span>
+              <span class="tag">High cost</span>
+              <span class="tag">Moderate to strong evidence</span>
+            </div>
+            <div class="actions">
+              <a href="#" class="btn-link">Explore summary</a>
+              <button class="btn-secondary" type="button">Implementation</button>
+            </div>
+          </article>
+
+          <!-- Metacognition and self-regulation -->
+          <article class="card">
+            <div class="topline">
+              <span class="pill">Impact: <span class="effect-size">+7 months</span></span>
+              <span class="pill">£</span>
+            </div>
+            <h4>Metacognition and self‑regulation</h4>
+            <p class="summary">Teaching pupils strategies to plan, monitor, and evaluate their learning. Often integrated into subject teaching.</p>
+            <div class="meta">
+              <span class="tag">High impact</span>
+              <span class="tag">Low cost</span>
+              <span class="tag">Strong evidence</span>
+            </div>
+            <div class="actions">
+              <a href="#" class="btn-link">Explore summary</a>
+              <button class="btn-secondary" type="button">Implementation</button>
+            </div>
+          </article>
+
+          <!-- Reading comprehension strategies -->
+          <article class="card">
+            <div class="topline">
+              <span class="pill">Impact: <span class="effect-size">+6 months</span></span>
+              <span class="pill">£</span>
+            </div>
+            <h4>Reading comprehension strategies</h4>
+            <p class="summary">Approaches such as summarising, predicting, and questioning that explicitly teach pupils to understand texts.</p>
+            <div class="meta">
+              <span class="tag">High impact</span>
+              <span class="tag">Low cost</span>
+              <span class="tag">Strong evidence</span>
+              <span class="tag">Primary</span>
+            </div>
+            <div class="actions">
+              <a href="#" class="btn-link">Explore summary</a>
+              <button class="btn-secondary" type="button">Implementation</button>
+            </div>
+          </article>
+
+          <!-- Mastery learning -->
+          <article class="card">
+            <div class="topline">
+              <span class="pill">Impact: <span class="effect-size">+5 months</span></span>
+              <span class="pill">£</span>
+            </div>
+            <h4>Mastery learning</h4>
+            <p class="summary">Sequenced instruction where pupils work through units and demonstrate mastery before progressing.</p>
+            <div class="meta">
+              <span class="tag">Moderate to high impact</span>
+              <span class="tag">Low cost</span>
+              <span class="tag">Moderate evidence</span>
+            </div>
+            <div class="actions">
+              <a href="#" class="btn-link">Explore summary</a>
+              <button class="btn-secondary" type="button">Implementation</button>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-grid">
+        <div>
+          <div class="footer-title">About</div>
+          <p>Independent charity dedicated to breaking the link between family income and educational achievement.</p>
+        </div>
+        <div class="footer-col">
+          <div class="footer-title">Evidence</div>
+          <a href="#">Teaching & Learning Toolkit</a>
+          <a href="#">Early Years Toolkit</a>
+          <a href="#">SEND</a>
+        </div>
+        <div class="footer-col">
+          <div class="footer-title">Guidance</div>
+          <a href="#">Guidance reports</a>
+          <a href="#">Professional development</a>
+        </div>
+        <div class="footer-col">
+          <div class="footer-title">About EEF</div>
+          <a href="#">Who we are</a>
+          <a href="#">Contact</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+  </html>
+
+
