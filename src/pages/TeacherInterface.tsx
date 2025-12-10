@@ -15,6 +15,15 @@ import { useAudio } from '../hooks/useAudio';
 import type { CurrentClass, MusicQuestion } from '../types';
 import { musicQuestionsData } from '../data/musicQuestions';
 
+// Sessions that require a class to be selected
+const SESSIONS_REQUIRING_CLASS = [
+  'Music Who Are You?',
+  'My Creativity',
+  'Class Planning Session',
+  'Sound Matching Session',
+  'Now & Next'
+];
+
 /**
  * Main teacher interface for managing classes and sessions
  */
@@ -29,7 +38,8 @@ export const TeacherInterface: React.FC = () => {
   const [isClassSelectionVisible, setIsClassSelectionVisible] = useState(true);
 
   useEffect(() => {
-    if (currentClass && currentSession) {
+    // Only load questions for sessions that require a class and have both class and session selected
+    if (currentClass && currentSession && SESSIONS_REQUIRING_CLASS.includes(currentSession)) {
       // Get questions for the selected session and class level
       const questions = musicQuestionsData.filter(q => 
         q.session_type === currentSession && 
@@ -45,6 +55,9 @@ export const TeacherInterface: React.FC = () => {
       setTimeout(() => {
         hideStatus();
       }, 3000);
+    } else if (currentSession && !SESSIONS_REQUIRING_CLASS.includes(currentSession)) {
+      // Clear questions for sessions that don't require a class
+      setSessionQuestions([]);
     }
   }, [currentClass, currentSession, showSuccess, hideStatus]);
 
@@ -54,6 +67,10 @@ export const TeacherInterface: React.FC = () => {
 
   const handleSessionSelect = (session: string) => {
     setCurrentSession(session);
+    // Clear class selection if switching to a session that doesn't require a class
+    if (session && !SESSIONS_REQUIRING_CLASS.includes(session)) {
+      setCurrentClass(null);
+    }
   };
 
   const handleSaveStudent = (studentData: any) => {
@@ -78,6 +95,8 @@ export const TeacherInterface: React.FC = () => {
   const handleBackToSessions = () => {
     setCurrentSession(null);
     setSessionQuestions([]);
+    // Note: We don't clear currentClass here as the user might want to keep it selected
+    // The ClassSelection component will handle clearing it when switching sessions
   };
 
   // Render Freesound Session if selected

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { ClassData, CurrentClass } from '../types';
 import { useClasses } from '../hooks/useClasses';
 import { useStatus } from '../hooks/useStatus';
@@ -7,6 +7,15 @@ interface ClassSelectionProps {
   onClassSelect: (currentClass: CurrentClass) => void;
   onSessionSelect: (session: string) => void;
 }
+
+// Sessions that require a class to be selected
+const SESSIONS_REQUIRING_CLASS = [
+  'Music Who Are You?',
+  'My Creativity',
+  'Class Planning Session',
+  'Sound Matching Session',
+  'Now & Next'
+];
 
 export const ClassSelection: React.FC<ClassSelectionProps> = ({
   onClassSelect,
@@ -54,11 +63,6 @@ export const ClassSelection: React.FC<ClassSelectionProps> = ({
     }
   };
 
-  const handleSessionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const session = e.target.value;
-    setSelectedSession(session);
-    onSessionSelect(session);
-  };
 
   const handleAddClass = async () => {
     if (!newClassName.trim()) {
@@ -144,6 +148,35 @@ export const ClassSelection: React.FC<ClassSelectionProps> = ({
     setShowClassManagement(!showClassManagement);
   };
 
+  // Determine if the selected session requires a class
+  const requiresClass = useMemo(() => {
+    return selectedSession ? SESSIONS_REQUIRING_CLASS.includes(selectedSession) : false;
+  }, [selectedSession]);
+
+  // Handle activity card click
+  const handleActivityClick = (session: string) => {
+    setSelectedSession(session);
+    
+    // If switching to a session that doesn't require a class, clear class selection
+    if (session && !SESSIONS_REQUIRING_CLASS.includes(session)) {
+      setSelectedClass('');
+      // Don't call onClassSelect here - the parent will handle clearing via handleSessionSelect
+    }
+    
+    onSessionSelect(session);
+  };
+
+  // Define all available activities with icons/emojis
+  const activities = [
+    { name: 'Music Who Are You?', icon: '🎵', requiresClass: true },
+    { name: 'Freesound Session', icon: '🔊', requiresClass: false },
+    { name: 'My Creativity', icon: '🎨', requiresClass: true },
+    { name: 'Class Planning Session', icon: '📋', requiresClass: true },
+    { name: 'Sound Matching Session', icon: '🎯', requiresClass: true },
+    { name: 'Now & Next', icon: '⏭️', requiresClass: true },
+    { name: 'How Are You Feeling', icon: '😊', requiresClass: false }
+  ];
+
   return (
     <div className="class-selection">
       {error && (
@@ -151,39 +184,55 @@ export const ClassSelection: React.FC<ClassSelectionProps> = ({
           ⚠️ {error}
         </div>
       )}
+      <div className="activity-selection">
+        <h3 style={{ marginBottom: '20px', color: '#333', textAlign: 'center' }}>Select Activity</h3>
+        <div className="activity-cards">
+          {activities.map((activity) => {
+            const isSelected = selectedSession === activity.name;
+            return (
+              <button
+                key={activity.name}
+                className={`activity-card ${isSelected ? 'selected' : ''}`}
+                onClick={() => handleActivityClick(activity.name)}
+                type="button"
+              >
+                <div className="activity-icon">{activity.icon}</div>
+                <div className="activity-name">{activity.name}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      
       <div className="class-selector">
-        <div className="selector-group">
-          <label htmlFor="classSelect">Select Class:</label>
-          <select 
-            id="classSelect" 
-            value={selectedClass}
-            onChange={handleClassChange}
-            disabled={loading}
-          >
-            <option value="">{loading ? 'Loading classes...' : 'Choose a class...'}</option>
-            {classes.map((classData, index) => (
-              <option key={index} value={classData.class_name}>
-                {classData.class_name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="selector-group">
-          <label htmlFor="sessionSelect">Select Session:</label>
-          <select 
-            id="sessionSelect" 
-            value={selectedSession}
-            onChange={handleSessionChange}
-          >
-            <option value="">Choose a session...</option>
-            <option value="Music Who Are You?">Music Who Are You?</option>
-            <option value="Freesound Session">Freesound Session</option>
-            <option value="My Creativity">My Creativity</option>
-            <option value="Class Planning Session">Class Planning Session</option>
-            <option value="Sound Matching Session">Sound Matching Session</option>
-            <option value="How Are You Feeling">How Are You Feeling</option>
-          </select>
-        </div>
+        {selectedSession && requiresClass && (
+          <div className="selector-group">
+            <label htmlFor="classSelect">Select Class:</label>
+            <select 
+              id="classSelect" 
+              value={selectedClass}
+              onChange={handleClassChange}
+              disabled={loading}
+            >
+              <option value="">{loading ? 'Loading classes...' : 'Choose a class...'}</option>
+              {classes.map((classData, index) => (
+                <option key={index} value={classData.class_name}>
+                  {classData.class_name}
+                </option>
+              ))}
+            </select>
+            <small style={{ color: '#666', fontSize: '0.85em', marginTop: '4px' }}>
+              This activity requires a class to be selected
+            </small>
+          </div>
+        )}
+        {selectedSession && !requiresClass && (
+          <div className="selector-group">
+            <small style={{ color: '#28a745', fontSize: '0.9em', fontStyle: 'italic' }}>
+              ✓ This activity does not require a class selection
+            </small>
+          </div>
+        )}
         {isDevEnvironment && (
           <button 
             className="btn-teacher" 
