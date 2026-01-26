@@ -174,7 +174,8 @@ export const ClassSelection: React.FC<ClassSelectionProps> = ({
     { name: 'Class Planning Session', icon: '📋', requiresClass: true },
     { name: 'Sound Matching Session', icon: '🎯', requiresClass: true },
     { name: 'Now & Next', icon: '⏭️', requiresClass: true },
-    { name: 'How Are You Feeling', icon: '😊', requiresClass: false }
+    { name: 'How Are You Feeling', icon: '😊', requiresClass: false },
+    { name: 'Hand Gesture Session', icon: '✋', requiresClass: false }
   ];
 
   return (

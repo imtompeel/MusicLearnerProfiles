@@ -6,9 +6,11 @@ import { FreesoundSession } from '../components/FreesoundSession';
 import { CreativitySession } from '../components/CreativitySession';
 import { ClassPlanningSession } from '../components/ClassPlanningSession';
 import { SoundMatchingSession } from '../components/SoundMatchingSession';
+import { MusicWhoAreYouSession } from '../components/MusicWhoAreYouSession';
 import { Status } from '../components/Status';
 import { NowNextSession } from '../components/NowNextSession';
 import { HowAreYouFeelingSession } from '../components/HowAreYouFeelingSession';
+import { HandGestureSession } from '../components/HandGestureSession';
 import { useStudentData } from '../hooks/useStudentData';
 import { useStatus } from '../hooks/useStatus';
 import { useAudio } from '../hooks/useAudio';
@@ -154,6 +156,31 @@ export const TeacherInterface: React.FC = () => {
     return (
       <div className="container">
         <HowAreYouFeelingSession onBack={handleBackToSessions} />
+        <Status message={status.message} type={status.type} />
+      </div>
+    );
+  }
+
+  // Render Hand Gesture Session if selected
+  if (currentSession === 'Hand Gesture Session') {
+    return (
+      <div className="container">
+        <HandGestureSession onBack={handleBackToSessions} />
+        <Status message={status.message} type={status.type} />
+      </div>
+    );
+  }
+
+  // Render Music Who Are You? if selected
+  if (currentSession === 'Music Who Are You?') {
+    return (
+      <div className="container">
+        <MusicWhoAreYouSession 
+          onBack={handleBackToSessions}
+          currentClass={currentClass}
+          sessionQuestions={sessionQuestions}
+          onSaveStudent={handleSaveStudent}
+        />
         <Status message={status.message} type={status.type} />
       </div>
     );
