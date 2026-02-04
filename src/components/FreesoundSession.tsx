@@ -7,6 +7,16 @@ interface FreesoundSessionProps {
   onBack: () => void;
 }
 
+type SavedSoundPreset = {
+  id: string;
+  name: string;
+  searchTerm?: string;
+  createdAt: string;
+  sounds: FreesoundResult[];
+};
+
+const FREESOUND_PRESETS_STORAGE_KEY = 'freesound_presets_v1';
+
 export const FreesoundSession: React.FC<FreesoundSessionProps> = ({ onBack }) => {
   const { isLoading, error, playSound, getSoundsByTerms } = useFreesound();
   const { showSuccess, showError } = useStatus();
@@ -21,6 +31,23 @@ export const FreesoundSession: React.FC<FreesoundSessionProps> = ({ onBack }) =>
   const [allFoundSounds, setAllFoundSounds] = useState<FreesoundResult[]>([]);
   const [usedSoundIds, setUsedSoundIds] = useState<Set<number>>(new Set());
   const [isStudentUI, setIsStudentUI] = useState(false);
+  const [savedPresets, setSavedPresets] = useState<SavedSoundPreset[]>([]);
+  const [presetName, setPresetName] = useState('');
+
+  // Load any previously saved presets
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(FREESOUND_PRESETS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as SavedSoundPreset[];
+        if (Array.isArray(parsed)) {
+          setSavedPresets(parsed);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load Freesound presets from storage', err);
+    }
+  }, []);
 
   // MIDI support
   useEffect(() => {
@@ -63,6 +90,14 @@ export const FreesoundSession: React.FC<FreesoundSessionProps> = ({ onBack }) =>
       }
     }
   }, [soundLibrary]);
+
+  const persistPresets = (presets: SavedSoundPreset[]) => {
+    try {
+      localStorage.setItem(FREESOUND_PRESETS_STORAGE_KEY, JSON.stringify(presets));
+    } catch (err) {
+      console.error('Failed to save Freesound presets to storage', err);
+    }
+  };
 
   const triggerRandomSound = useCallback(async () => {
     if (soundLibrary.length === 0) return;
@@ -175,6 +210,33 @@ export const FreesoundSession: React.FC<FreesoundSessionProps> = ({ onBack }) =>
     }
   };
 
+  const handleDownloadSound = async (sound: FreesoundResult) => {
+    const previewUrl = sound.previews['preview-hq-mp3'] || sound.previews['preview-lq-mp3'];
+    if (!previewUrl) {
+      showError('No preview URL available for this sound');
+      return;
+    }
+    try {
+      const response = await fetch(previewUrl);
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const safeName = sound.name.replace(/[<>:"/\\|?*]/g, '_').trim() || `freesound-${sound.id}`;
+      const filename = `${safeName}.mp3`;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showSuccess(`Downloaded: ${filename}`);
+    } catch (err) {
+      console.error('Failed to download sound:', err);
+      showError('Failed to download sound');
+    }
+  };
+
   const handleTestMidi = () => {
     // Simulate MIDI C5 (note 72) with velocity 100
     console.log('🎹 Testing MIDI C5 (note 72) - triggering random sound');
@@ -223,6 +285,66 @@ export const FreesoundSession: React.FC<FreesoundSessionProps> = ({ onBack }) =>
     }
   };
 
+  const handleSavePreset = () => {
+    if (soundLibrary.length === 0) {
+      showError('No sounds to save. Please search for sounds and curate a set first.');
+      return;
+    }
+
+    const trimmedName = presetName.trim() || searchTerm.trim() || 'Unnamed preset';
+
+    const newPreset: SavedSoundPreset = {
+      id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      name: trimmedName,
+      searchTerm: searchTerm.trim() || undefined,
+      createdAt: new Date().toISOString(),
+      sounds: soundLibrary,
+    };
+
+    const updatedPresets = [...savedPresets, newPreset];
+    setSavedPresets(updatedPresets);
+    persistPresets(updatedPresets);
+    showSuccess(`Saved ${soundLibrary.length} sounds as "${trimmedName}"`);
+  };
+
+  const handleLoadPreset = (preset: SavedSoundPreset) => {
+    setSoundLibrary(preset.sounds);
+    setAllFoundSounds(preset.sounds);
+    const usedIds = new Set(preset.sounds.map((s) => s.id));
+    setUsedSoundIds(usedIds);
+    if (preset.searchTerm) {
+      setSearchTerm(preset.searchTerm);
+    }
+    showSuccess(`Loaded preset "${preset.name}" with ${preset.sounds.length} sounds`);
+  };
+
+  const handleDeletePreset = (presetId: string) => {
+    const updatedPresets = savedPresets.filter((p) => p.id !== presetId);
+    setSavedPresets(updatedPresets);
+    persistPresets(updatedPresets);
+  };
+
+  const downloadJsonFile = (data: unknown, filename: string) => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportPreset = (preset: SavedSoundPreset) => {
+    const safeName = preset.name.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').slice(0, 50) || 'preset';
+    downloadJsonFile(preset, `freesound-preset-${safeName}.json`);
+    showSuccess(`Exported "${preset.name}"`);
+  };
+
+  const handleExportAll = () => {
+    downloadJsonFile(savedPresets, `freesound-presets-all-${new Date().toISOString().slice(0, 10)}.json`);
+    showSuccess(`Exported ${savedPresets.length} saved set(s)`);
+  };
+
   return (
     <div className="freesound-session">
       <div className="session-header">
@@ -252,14 +374,22 @@ export const FreesoundSession: React.FC<FreesoundSessionProps> = ({ onBack }) =>
           {soundLibrary.length > 0 ? (
             <div className="student-sound-grid">
               {soundLibrary.map((sound) => (
+                <div key={sound.id} className="student-sound-cell">
                 <button
-                  key={sound.id}
                   onClick={() => handlePlaySound(sound)}
                   disabled={currentlyPlaying === sound.name}
                   className={`student-play-btn ${currentlyPlaying === sound.name ? 'playing' : ''}`}
                 >
                   {currentlyPlaying === sound.name ? '🔊' : '▶️'}
                 </button>
+                  <button
+                    onClick={() => handleDownloadSound(sound)}
+                    className="student-download-btn"
+                    title="Download"
+                  >
+                    ⬇️
+                  </button>
+                </div>
               ))}
             </div>
           ) : (
@@ -343,6 +473,13 @@ export const FreesoundSession: React.FC<FreesoundSessionProps> = ({ onBack }) =>
                         {currentlyPlaying === sound.name ? '🔊 Playing...' : '▶️ Play'}
                       </button>
                       <button
+                        onClick={() => handleDownloadSound(sound)}
+                        className="btn-download"
+                        title="Download this sound as MP3"
+                      >
+                        ⬇️ Download
+                      </button>
+                      <button
                         onClick={() => handleDismissSound(sound.id)}
                         className="btn-dismiss"
                         title="Dismiss this sound and load a replacement"
@@ -362,6 +499,76 @@ export const FreesoundSession: React.FC<FreesoundSessionProps> = ({ onBack }) =>
                   🎲 Play Random Sound
                 </button>
               </div>
+            </div>
+          )}
+
+          {(soundLibrary.length > 0 || savedPresets.length > 0) && (
+            <div className="preset-section">
+              <h3>💾 Saved sound sets</h3>
+              <div className="preset-save-row">
+                <input
+                  type="text"
+                  value={presetName}
+                  onChange={(e) => setPresetName(e.target.value)}
+                  placeholder="Name this set (e.g. 'Cheer – Year 5')"
+                  className="preset-name-input"
+                />
+                <button
+                  onClick={handleSavePreset}
+                  disabled={soundLibrary.length === 0}
+                  className="btn-save-preset"
+                >
+                  Save current set
+                </button>
+              </div>
+              {savedPresets.length > 0 && (
+                <>
+                  <div className="preset-export-all-row">
+                    <button
+                      onClick={handleExportAll}
+                      className="btn-export-all"
+                      title="Download all saved sets as one JSON file"
+                    >
+                      📤 Export all
+                    </button>
+                  </div>
+                <div className="preset-list">
+                  {savedPresets.map((preset) => (
+                    <div key={preset.id} className="preset-item">
+                      <div className="preset-info">
+                        <strong>{preset.name}</strong>
+                        <span className="preset-meta">
+                          {preset.sounds.length} sounds
+                          {preset.searchTerm ? ` · search: "${preset.searchTerm}"` : ''}
+                        </span>
+                      </div>
+                      <div className="preset-actions">
+                        <button
+                          onClick={() => handleLoadPreset(preset)}
+                          className="btn-load-preset"
+                        >
+                          Load
+                        </button>
+                          <button
+                            onClick={() => handleExportPreset(preset)}
+                            className="btn-export-preset"
+                            title="Download this set as a JSON file"
+                          >
+                            Export
+                          </button>
+                        <button
+                          onClick={() => handleDeletePreset(preset.id)}
+                          className="btn-delete-preset"
+                          title="Remove this saved set"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                </>
+              )}
             </div>
           )}
 

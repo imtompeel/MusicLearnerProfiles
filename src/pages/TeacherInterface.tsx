@@ -161,8 +161,8 @@ export const TeacherInterface: React.FC = () => {
     );
   }
 
-  // Render Hand Gesture Session if selected
-  if (currentSession === 'Hand Gesture Session') {
+  // Render Gesture Session if selected
+  if (currentSession === 'Gesture Session') {
     return (
       <div className="container">
         <HandGestureSession onBack={handleBackToSessions} />

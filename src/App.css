@@ -1467,6 +1467,168 @@ body {
     cursor: not-allowed;
 }
 
+.preset-section {
+    background: white;
+    padding: 20px 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    margin-bottom: 25px;
+}
+
+.preset-section h3 {
+    margin: 0 0 15px 0;
+    text-align: center;
+    color: #2c3e50;
+}
+
+.preset-save-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 15px;
+}
+
+.preset-name-input {
+    flex: 1;
+    min-width: 220px;
+    max-width: 420px;
+    padding: 10px 14px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 0.95rem;
+}
+
+.preset-name-input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.btn-save-preset {
+    background: linear-gradient(145deg, #3498db, #2980b9);
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    white-space: nowrap;
+    transition: all 0.3s ease;
+}
+
+.btn-save-preset:hover:not(:disabled) {
+    background: linear-gradient(145deg, #2980b9, #2471a3);
+    transform: translateY(-1px);
+}
+
+.btn-save-preset:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.preset-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.preset-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+}
+
+.preset-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.preset-meta {
+    font-size: 0.8rem;
+    color: #7f8c8d;
+}
+
+.preset-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-load-preset {
+    background: linear-gradient(145deg, #27ae60, #229954);
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.3s ease;
+}
+
+.btn-load-preset:hover {
+    background: linear-gradient(145deg, #229954, #1e8449);
+    transform: translateY(-1px);
+}
+
+.btn-delete-preset {
+    background: linear-gradient(145deg, #e74c3c, #c0392b);
+    color: white;
+    border: none;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.3s ease;
+}
+
+.btn-delete-preset:hover {
+    background: linear-gradient(145deg, #c0392b, #a93226);
+    transform: translateY(-1px);
+}
+
+.preset-export-all-row {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 12px;
+}
+
+.btn-export-all {
+    background: linear-gradient(145deg, #3498db, #2980b9);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+}
+
+.btn-export-all:hover {
+    background: linear-gradient(145deg, #2980b9, #2471a3);
+    transform: translateY(-1px);
+}
+
+.btn-export-preset {
+    background: linear-gradient(145deg, #3498db, #2980b9);
+    color: white;
+    border: none;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.3s ease;
+}
+
+.btn-export-preset:hover {
+    background: linear-gradient(145deg, #2980b9, #2471a3);
+    transform: translateY(-1px);
+}
+
 .loading {
     text-align: center;
     padding: 40px;
@@ -3839,6 +4001,30 @@ body {
 .no-detection {
   font-size: 1.5rem;
   opacity: 0.8;
+}
+
+.gesture-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 15px;
+  flex-wrap: wrap;
+}
+
+.gesture-tab {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.5);
+  color: #2c3e50;
+  transition: all 0.2s ease;
+}
+
+.gesture-tab.active {
+  background: #2c3e50;
+  color: #fff;
 }
 
 .gesture-instructions {
