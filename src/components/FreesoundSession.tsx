@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useFreesound } from '../hooks/useFreesound';
 import { useStatus } from '../hooks/useStatus';
 import type { FreesoundResult } from '../utils/freesound';
@@ -33,6 +33,9 @@ export const FreesoundSession: React.FC<FreesoundSessionProps> = ({ onBack }) =>
   const [isStudentUI, setIsStudentUI] = useState(false);
   const [savedPresets, setSavedPresets] = useState<SavedSoundPreset[]>([]);
   const [presetName, setPresetName] = useState('');
+  // Tap-vs-drag: only trigger play when pointer moved less than this (px) – helps learners with motor control
+  const pointerStartRef = useRef<Record<number, { x: number; y: number }>>({});
+  const TAP_MOVE_THRESHOLD_PX = 24;
 
   // Load any previously saved presets
   useEffect(() => {
@@ -197,6 +200,27 @@ export const FreesoundSession: React.FC<FreesoundSessionProps> = ({ onBack }) =>
     }
   };
 
+  const handleStudentPointerDown = useCallback((e: React.PointerEvent, _sound: FreesoundResult) => {
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    pointerStartRef.current[e.pointerId] = { x: e.clientX, y: e.clientY };
+  }, []);
+
+  const handleStudentPointerUp = useCallback((e: React.PointerEvent, sound: FreesoundResult) => {
+    const start = pointerStartRef.current[e.pointerId];
+    delete pointerStartRef.current[e.pointerId];
+    if (start) {
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      if (dx * dx + dy * dy <= TAP_MOVE_THRESHOLD_PX * TAP_MOVE_THRESHOLD_PX) {
+        handlePlaySound(sound);
+      }
+    }
+  }, []);
+
+  const handleStudentPointerCancel = useCallback((e: React.PointerEvent) => {
+    delete pointerStartRef.current[e.pointerId];
+  }, []);
+
   const handlePlaySound = async (sound: FreesoundResult) => {
     try {
       setCurrentlyPlaying(sound.name);
@@ -346,7 +370,7 @@ export const FreesoundSession: React.FC<FreesoundSessionProps> = ({ onBack }) =>
   };
 
   return (
-    <div className="freesound-session">
+    <div className={`freesound-session ${isStudentUI ? 'student-ui-mode' : ''}`}>
       <div className="session-header">
         {!isStudentUI && (
           <button className="btn-back" onClick={onBack}>
@@ -374,22 +398,18 @@ export const FreesoundSession: React.FC<FreesoundSessionProps> = ({ onBack }) =>
           {soundLibrary.length > 0 ? (
             <div className="student-sound-grid">
               {soundLibrary.map((sound) => (
-                <div key={sound.id} className="student-sound-cell">
                 <button
-                  onClick={() => handlePlaySound(sound)}
+                  key={sound.id}
+                  type="button"
                   disabled={currentlyPlaying === sound.name}
                   className={`student-play-btn ${currentlyPlaying === sound.name ? 'playing' : ''}`}
+                  onPointerDown={(e) => handleStudentPointerDown(e, sound)}
+                  onPointerUp={(e) => handleStudentPointerUp(e, sound)}
+                  onPointerCancel={handleStudentPointerCancel}
+                  onClick={(e) => e.preventDefault()}
                 >
                   {currentlyPlaying === sound.name ? '🔊' : '▶️'}
                 </button>
-                  <button
-                    onClick={() => handleDownloadSound(sound)}
-                    className="student-download-btn"
-                    title="Download"
-                  >
-                    ⬇️
-                  </button>
-                </div>
               ))}
             </div>
           ) : (
@@ -477,7 +497,7 @@ export const FreesoundSession: React.FC<FreesoundSessionProps> = ({ onBack }) =>
                         className="btn-download"
                         title="Download this sound as MP3"
                       >
-                        ⬇️ Download
+                        ⬇️
                       </button>
                       <button
                         onClick={() => handleDismissSound(sound.id)}
