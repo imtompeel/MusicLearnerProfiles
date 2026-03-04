@@ -1,72 +1,49 @@
 {
   "faces": [
     {
-      "id": "very_unhappy",
-      "label": "Very unhappy",
-      "colorHex": "#D32F2F",
+      "id": "blue",
+      "label": "Blue Zone",
+      "colorHex": "#2196F3",
       "words": [
-        { "id": "anxious", "text": "Anxious", "description": "Feeling worried or uneasy.", "arasaacId": 3564 },
-        { "id": "angry", "text": "Angry", "description": "Feeling annoyed or upset.", "arasaacId": 12666 },
-        { "id": "sad", "text": "Sad", "description": "Feeling unhappy or down.", "arasaacId": 11264 },
-        { "id": "scared", "text": "Scared", "description": "Feeling afraid or frightened.", "arasaacId": 10936 },
-        { "id": "lonely", "text": "Lonely", "description": "Feeling alone or isolated.", "arasaacId": 10937 },
-        { "id": "overwhelmed", "text": "Overwhelmed", "description": "Feeling too much to handle.", "arasaacId": 10938 }
+        { "id": "sad", "text": "Sad", "description": "Feeling low or tearful.", "arasaacId": 11264 },
+        { "id": "hurt", "text": "Hurt", "description": "Feeling upset or in pain.", "arasaacId": 11264 },
+        { "id": "sick", "text": "Sick", "description": "Feeling unwell in your body.", "arasaacId": 15203 },
+        { "id": "tired", "text": "Tired", "description": "Low energy or sleepy.", "arasaacId": 15203 }
       ]
     },
     {
-      "id": "unhappy",
-      "label": "Unhappy",
+      "id": "green",
+      "label": "Green Zone",
+      "colorHex": "#4CAF50",
+      "words": [
+        { "id": "happy", "text": "Happy", "description": "Feeling pleased or cheerful.", "arasaacId": 9554 },
+        { "id": "focused", "text": "Focused", "description": "Ready to listen and learn.", "arasaacId": 10946 },
+        { "id": "calm", "text": "Calm", "description": "Feeling relaxed and settled.", "arasaacId": 952 },
+        { "id": "excited", "text": "Excited", "description": "Looking forward to something.", "arasaacId": 1046 }
+      ]
+    },
+    {
+      "id": "yellow",
+      "label": "Yellow Zone",
+      "colorHex": "#FFEB3B",
+      "words": [
+        { "id": "surprised", "text": "Surprised", "description": "Something unexpected has happened.", "arasaacId": 10935 },
+        { "id": "confused", "text": "Confused", "description": "Not sure what to think.", "arasaacId": 10939 },
+        { "id": "worried", "text": "Worried", "description": "Thinking about problems.", "arasaacId": 10935 },
+        { "id": "silly", "text": "Silly", "description": "Feeling playful or over-excited.", "arasaacId": 1046 }
+      ]
+    },
+    {
+      "id": "red",
+      "label": "Red Zone",
       "colorHex": "#F44336",
       "words": [
-        { "id": "tired", "text": "Tired", "description": "Low energy or sleepy.", "arasaacId": 15203 },
-        { "id": "worried", "text": "Worried", "description": "Thinking about problems.", "arasaacId": 10935 },
-        { "id": "frustrated", "text": "Frustrated", "description": "Hard to do what you want.", "arasaacId": 10072 },
-        { "id": "confused", "text": "Confused", "description": "Not sure what to think.", "arasaacId": 10939 },
-        { "id": "disappointed", "text": "Disappointed", "description": "Feeling let down.", "arasaacId": 10940 },
-        { "id": "nervous", "text": "Nervous", "description": "Feeling uneasy or tense.", "arasaacId": 10941 }
-      ]
-    },
-    {
-      "id": "ok",
-      "label": "OK",
-      "colorHex": "#FFB300",
-      "words": [
-        { "id": "calm", "text": "Calm", "description": "Feeling relaxed.", "arasaacId": 952 },
-        { "id": "fine", "text": "Fine", "description": "Neither happy nor sad.", "arasaacId": 33116 },
-        { "id": "bored", "text": "Bored", "description": "Nothing interesting to do.", "arasaacId": 11034 },
-        { "id": "neutral", "text": "Neutral", "description": "Not feeling much either way.", "arasaacId": 10942 },
-        { "id": "peaceful", "text": "Peaceful", "description": "Feeling quiet and calm.", "arasaacId": 10943 },
-        { "id": "content", "text": "Content", "description": "Feeling satisfied with things.", "arasaacId": 10944 }
-      ]
-    },
-    {
-      "id": "happy",
-      "label": "Happy",
-      "colorHex": "#8BC34A",
-      "words": [
-        { "id": "excited", "text": "Excited", "description": "Looking forward to something.", "arasaacId": 1046 },
-        { "id": "proud", "text": "Proud", "description": "Feeling good about yourself.", "arasaacId": 10994 },
-        { "id": "friendly", "text": "Friendly", "description": "Kind and ready to help.", "arasaacId": 10138 },
-        { "id": "grateful", "text": "Grateful", "description": "Feeling thankful.", "arasaacId": 10945 },
-        { "id": "hopeful", "text": "Hopeful", "description": "Feeling positive about the future.", "arasaacId": 10946 },
-        { "id": "cheerful", "text": "Cheerful", "description": "Feeling bright and happy.", "arasaacId": 10947 }
-      ]
-    },
-    {
-      "id": "very_happy",
-      "label": "Very happy",
-      "colorHex": "#43A047",
-      "words": [
-        { "id": "joyful", "text": "Joyful", "description": "Very happy and cheerful.", "arasaacId": 9554 },
-        { "id": "confident", "text": "Confident", "description": "Sure you can do it.", "arasaacId": 9612 },
-        { "id": "energetic", "text": "Energetic", "description": "Full of energy.", "arasaacId": 3860 },
-        { "id": "enthusiastic", "text": "Enthusiastic", "description": "Very excited and interested.", "arasaacId": 10948 },
-        { "id": "amazed", "text": "Amazed", "description": "Feeling surprised and delighted.", "arasaacId": 10949 },
-        { "id": "inspired", "text": "Inspired", "description": "Feeling creative and motivated.", "arasaacId": 10950 }
+        { "id": "angry", "text": "Angry", "description": "Feeling cross or furious.", "arasaacId": 12666 },
+        { "id": "raging", "text": "Raging", "description": "Anger that feels very big.", "arasaacId": 12666 },
+        { "id": "terrified", "text": "Terrified", "description": "Feeling extremely scared.", "arasaacId": 10936 },
+        { "id": "annoyed", "text": "Annoyed", "description": "Feeling irritated or fed up.", "arasaacId": 10940 }
       ]
     }
   ]
 }
-
-
 

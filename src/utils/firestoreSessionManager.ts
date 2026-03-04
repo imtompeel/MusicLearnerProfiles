@@ -10,9 +10,25 @@ import {
   where,
   getDocs,
   serverTimestamp,
-  Timestamp
+  Timestamp,
+  runTransaction
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+
+export interface SessionMeta {
+  mode?: string;
+  ageBand?: 'early' | 'primary' | 'secondary';
+}
+
+export interface TAJobState {
+  id: string;
+  title: string;
+  description?: string;
+  assignedTo?: string;
+  assignedAt?: Timestamp;
+  completed?: boolean;
+  completedAt?: Timestamp;
+}
 
 export interface SessionState {
   isActive: boolean;
@@ -24,6 +40,8 @@ export interface SessionState {
   currentQuestionIndex: number;
   createdAt?: Timestamp;
   expiresAt?: Timestamp;
+  meta?: SessionMeta;
+  jobs?: { [jobId: string]: TAJobState };
 }
 
 export interface Participant {
@@ -54,7 +72,7 @@ class FirestoreSessionManager {
   }
 
   // Create a lobby (session exists but not started)
-  async createLobby(sessionCode: string, _questions: any[]): Promise<void> {
+  async createLobby(sessionCode: string, _questions: any[], meta?: SessionMeta): Promise<void> {
     try {
       this.currentSessionCode = sessionCode;
       
@@ -71,7 +89,8 @@ class FirestoreSessionManager {
         participants: {},
         currentQuestionIndex: -1,
         createdAt: serverTimestamp() as Timestamp,
-        expiresAt: Timestamp.fromDate(expiresAt)
+        expiresAt: Timestamp.fromDate(expiresAt),
+        meta
       };
 
       await setDoc(doc(db, 'sessions', sessionCode), sessionData);
@@ -383,6 +402,90 @@ class FirestoreSessionManager {
     } catch (error) {
       console.error('Error cleaning up expired sessions:', error);
     }
+  }
+
+  // Set or replace the TA jobs map for a session
+  async setJobs(sessionCode: string, jobs: { [jobId: string]: TAJobState }): Promise<void> {
+    try {
+      const sessionRef = doc(db, 'sessions', sessionCode);
+      await updateDoc(sessionRef, { jobs });
+      console.log('TA jobs set for session:', sessionCode);
+    } catch (error) {
+      console.error('Error setting TA jobs:', error);
+      throw error;
+    }
+  }
+
+  // Claim a job for a specific deviceId using a Firestore transaction (first-come-first-served)
+  async claimJob(sessionCode: string, jobId: string, deviceId: string): Promise<void> {
+    const sessionRef = doc(db, 'sessions', sessionCode);
+
+    await runTransaction(db, async (transaction) => {
+      const docSnap = await transaction.get(sessionRef);
+      if (!docSnap.exists()) {
+        throw new Error('Session not found');
+      }
+
+      const data = docSnap.data() as SessionState;
+      const existingJobs = data.jobs || {};
+      const job = existingJobs[jobId];
+
+      if (!job) {
+        throw new Error('Job not found');
+      }
+
+      // If already assigned to someone else, do nothing / fail fast
+      if (job.assignedTo && job.assignedTo !== deviceId) {
+        throw new Error('Job already claimed by another device');
+      }
+
+      const updatedJob: TAJobState = {
+        ...job,
+        assignedTo: deviceId,
+        assignedAt: serverTimestamp() as Timestamp
+      };
+
+      transaction.update(sessionRef, {
+        [`jobs.${jobId}`]: updatedJob
+      });
+    });
+  }
+
+  // Mark a job as completed by the device that claimed it
+  async completeJob(sessionCode: string, jobId: string, deviceId: string): Promise<void> {
+    const sessionRef = doc(db, 'sessions', sessionCode);
+
+    await runTransaction(db, async (transaction) => {
+      const docSnap = await transaction.get(sessionRef);
+      if (!docSnap.exists()) {
+        throw new Error('Session not found');
+      }
+
+      const data = docSnap.data() as SessionState;
+      const existingJobs = data.jobs || {};
+      const job = existingJobs[jobId];
+
+      if (!job) {
+        throw new Error('Job not found');
+      }
+
+      // Only the device that claimed the job can complete it
+      if (job.assignedTo && job.assignedTo !== deviceId) {
+        throw new Error('Only the assigned device can complete this job');
+      }
+
+      const updatedJob: TAJobState = {
+        ...job,
+        assignedTo: job.assignedTo || deviceId,
+        assignedAt: job.assignedAt || (serverTimestamp() as Timestamp),
+        completed: true,
+        completedAt: serverTimestamp() as Timestamp
+      };
+
+      transaction.update(sessionRef, {
+        [`jobs.${jobId}`]: updatedJob
+      });
+    });
   }
 }
 

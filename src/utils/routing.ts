@@ -29,7 +29,8 @@ export function parseRouteParams(): RouteParams {
  * Generate student join URL with session code
  */
 export interface StudentJoinOptions {
-  mode?: 'feeling' | 'standard';
+  mode?: 'feeling' | 'standard' | 'taTasks';
+  tier?: '1' | '2' | '3';
 }
 
 export function generateStudentJoinUrl(sessionCode: string, baseUrl?: string, options?: StudentJoinOptions): string {
@@ -38,6 +39,7 @@ export function generateStudentJoinUrl(sessionCode: string, baseUrl?: string, op
   params.set('student', 'true');
   params.set('code', sessionCode);
   if (options?.mode) params.set('mode', options.mode);
+   if (options?.tier) params.set('tier', options.tier);
   return `${base}?${params.toString()}`;
 }
 

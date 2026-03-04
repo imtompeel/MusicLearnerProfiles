@@ -2,8 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useStatus } from '../hooks/useStatus';
 import { generateStudentJoinUrl } from '../utils/routing';
 import { firestoreSessionManager } from '../utils/firestoreSessionManager';
-import QRCode from 'qrcode';
+import { generateSessionCode } from '../utils/sessionCodes';
+import { renderSessionQr } from '../utils/qr';
 import scale from '../data/feelingScale.json';
+import { type AgeBandId } from '../data/zonesOfRegulationConfig';
+import { FEELING_WORD_EMOJI_MAP } from '../data/feelingEmojis';
+import { type TierId } from '../data/feelingTierConfig';
+import { StudentFeelingSession } from './StudentFeelingSession';
 
 interface HowAreYouFeelingSessionProps {
   onBack: () => void;
@@ -14,16 +19,25 @@ export const HowAreYouFeelingSession: React.FC<HowAreYouFeelingSessionProps> = (
   const [sessionCode, setSessionCode] = useState<string>('');
   const [isLobby, setIsLobby] = useState<boolean>(false);
   const [participants, setParticipants] = useState<Record<string, any>>({});
+  const [ageBand] = useState<AgeBandId>('primary');
+  const [tier, setTier] = useState<TierId>('2');
+
+  const isDevEnvironment =
+    (typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname)) ||
+    (typeof import.meta !== 'undefined' && Boolean((import.meta as any)?.env?.DEV));
 
   useEffect(() => {
-    const code = Math.random().toString(36).substr(2, 6).toUpperCase();
+    const code = generateSessionCode();
     setSessionCode(code);
   }, []);
 
   const createLobby = async () => {
     try {
       // create minimal lobby so students can join
-      await firestoreSessionManager.createLobby(sessionCode, []);
+      await firestoreSessionManager.createLobby(sessionCode, [], {
+        mode: 'feeling',
+        ageBand
+      });
       setIsLobby(true);
       showSuccess('Feeling lobby created. Share the link/QR with students.');
     } catch (e) {
@@ -32,7 +46,7 @@ export const HowAreYouFeelingSession: React.FC<HowAreYouFeelingSessionProps> = (
   };
 
   const copyStudentJoinUrl = () => {
-    const studentUrl = generateStudentJoinUrl(sessionCode, undefined, { mode: 'feeling' });
+    const studentUrl = generateStudentJoinUrl(sessionCode, undefined, { mode: 'feeling', tier });
     navigator.clipboard.writeText(studentUrl).then(() => {
       showSuccess('Feeling join URL copied to clipboard!');
     }).catch(() => {
@@ -43,14 +57,11 @@ export const HowAreYouFeelingSession: React.FC<HowAreYouFeelingSessionProps> = (
   const generateQRCode = async () => {
     if (!sessionCode) return;
     try {
-      const studentUrl = generateStudentJoinUrl(sessionCode, undefined, { mode: 'feeling' });
-      const qrCodeElement = document.getElementById('feeling-qr');
-      if (qrCodeElement) {
-        qrCodeElement.innerHTML = '';
-        const canvas = document.createElement('canvas');
-        await QRCode.toCanvas(canvas, studentUrl, { width: 200, margin: 2, color: { dark: '#000000', light: '#FFFFFF' } });
-        qrCodeElement.appendChild(canvas);
-      }
+      await renderSessionQr(
+        sessionCode,
+        { mode: 'feeling', tier },
+        { elementId: 'feeling-qr' }
+      );
     } catch (error) {
       showError('Failed to generate QR code');
     }
@@ -120,6 +131,39 @@ export const HowAreYouFeelingSession: React.FC<HowAreYouFeelingSessionProps> = (
           <div className="session-code"><strong>Session Code:</strong> {sessionCode}</div>
         </div>
       </div>
+      <div 
+        className="session-tier" 
+        style={{ 
+          marginBottom: 8,
+          display: 'flex',
+          justifyContent: 'center'
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center'
+          }}
+        >
+          <label
+            htmlFor="tierSelect"
+            style={{ marginBottom: 4, fontWeight: 600, textAlign: 'center' }}
+          >
+            Tier layout for students:
+          </label>
+          <select
+            id="tierSelect"
+            value={tier}
+            onChange={(e) => setTier(e.target.value as TierId)}
+            style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #ccc' }}
+          >
+            <option value="1">Simple Set</option>
+            <option value="2">Medium Set</option>
+            <option value="3">Full Feelings Set</option>
+          </select>
+        </div>
+      </div>
       {!isLobby ? (
         <div className="session-setup">
           <div className="setup-content">
@@ -147,22 +191,12 @@ export const HowAreYouFeelingSession: React.FC<HowAreYouFeelingSessionProps> = (
               const minFontSize = 14;
               const maxFontSize = 32;
               
-              // Emoji map for faces
+              // Emoji map for faces (expressive faces aligned to zones)
               const faceEmojiMap: Record<string, string> = {
-                'very_unhappy': '😢',
-                'unhappy': '😔',
-                'ok': '😐',
-                'happy': '😊',
-                'very_happy': '😄'
-              };
-
-              // Emoji map for words
-              const wordEmojiMap: Record<string, string> = {
-                anxious: '😟', angry: '😡', sad: '😢', scared: '😨', lonely: '😔', overwhelmed: '😵',
-                tired: '😴', worried: '😰', frustrated: '😣', confused: '😕', disappointed: '😞', nervous: '😬',
-                calm: '😌', fine: '🙂', bored: '🥱', neutral: '😐', peaceful: '🧘', content: '😊',
-                excited: '🤩', proud: '🫡', friendly: '🤝', grateful: '🙏', hopeful: '🌟', cheerful: '😃',
-                joyful: '😄', confident: '💪', energetic: '⚡', enthusiastic: '🎉', amazed: '🤯', inspired: '✨'
+                red: '😡',
+                blue: '😢',
+                yellow: '😕',
+                green: '😊'
               };
 
               return (
@@ -242,7 +276,7 @@ export const HowAreYouFeelingSession: React.FC<HowAreYouFeelingSessionProps> = (
                           const wordInfo = faceData.wordMap[wordId] || { text: wordId, faceColor: '#95a5a6' };
                           const fontSize = minFontSize + ((count / maxWordCount) * (maxFontSize - minFontSize));
                           const opacity = 0.7 + ((count / maxWordCount) * 0.3);
-                          const emoji = wordEmojiMap[wordId] || '✨';
+                          const emoji = FEELING_WORD_EMOJI_MAP[wordId] || '✨';
                           return (
                             <div
                               key={wordId}
@@ -303,8 +337,27 @@ export const HowAreYouFeelingSession: React.FC<HowAreYouFeelingSessionProps> = (
           </div>
         </div>
       )}
+
+      {isLobby && isDevEnvironment && sessionCode && (
+        <div
+          style={{
+            marginTop: 24,
+            borderRadius: 12,
+            border: '1px dashed #888',
+            padding: 16,
+            background: '#fdfdfd'
+          }}
+        >
+          <h3 style={{ marginTop: 0 }}>🛠 Dev Preview: Student Feeling View</h3>
+          <p style={{ fontSize: 13, color: '#555' }}>
+            This is what a student sees after scanning the QR code, using the live session code.
+          </p>
+          <div style={{ maxWidth: 500, marginTop: 12 }}>
+            <StudentFeelingSession sessionCodeOverride={sessionCode} />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
-
 

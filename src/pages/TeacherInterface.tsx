@@ -11,6 +11,8 @@ import { Status } from '../components/Status';
 import { NowNextSession } from '../components/NowNextSession';
 import { HowAreYouFeelingSession } from '../components/HowAreYouFeelingSession';
 import { HandGestureSession } from '../components/HandGestureSession';
+import { InstrumentLibrarySession } from '../components/InstrumentLibrarySession';
+import { TeachingAssistantTasksSession } from '../components/TeachingAssistantTasksSession';
 import { useStudentData } from '../hooks/useStudentData';
 import { useStatus } from '../hooks/useStatus';
 import { useAudio } from '../hooks/useAudio';
@@ -181,6 +183,26 @@ export const TeacherInterface: React.FC = () => {
           sessionQuestions={sessionQuestions}
           onSaveStudent={handleSaveStudent}
         />
+        <Status message={status.message} type={status.type} />
+      </div>
+    );
+  }
+
+  // Render Instrument Library if selected
+  if (currentSession === 'Instrument Library') {
+    return (
+      <div className="container">
+        <InstrumentLibrarySession onBack={handleBackToSessions} />
+        <Status message={status.message} type={status.type} />
+      </div>
+    );
+  }
+
+  // Render Teaching Assistant Tasks if selected
+  if (currentSession === 'Teaching Assistant Tasks') {
+    return (
+      <div className="container">
+        <TeachingAssistantTasksSession onBack={handleBackToSessions} currentClass={currentClass} />
         <Status message={status.message} type={status.type} />
       </div>
     );
