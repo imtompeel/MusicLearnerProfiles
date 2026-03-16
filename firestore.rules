@@ -6,12 +6,25 @@ service cloud.firestore {
     match /sessions/{sessionCode} {
       allow read, write: if true; // For development - restrict in production
     }
-    
+
     // Allow read/write access to classes collection
     match /classes/{classId} {
       allow read, write: if true; // For development - restrict in production
     }
-    
+
+    // Allow read/write access to instrument library collections
+    match /instrument_library_instruments/{instrumentId} {
+      allow read, write: if true; // For development - restrict in production
+    }
+    match /instrument_library_loans/{loanId} {
+      allow read, write: if true; // For development - restrict in production
+    }
+
+    // Allow read/write access to documentary planning collection
+    match /documentary_planning/{planId} {
+      allow read, write: if true; // For development - restrict in production
+    }
+
     // Block access to all other documents
     match /{document=**} {
       allow read, write: if false;

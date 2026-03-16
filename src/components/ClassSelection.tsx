@@ -177,7 +177,8 @@ export const ClassSelection: React.FC<ClassSelectionProps> = ({
     { name: 'How Are You Feeling', icon: '😊', requiresClass: false },
     { name: 'Gesture Session', icon: '✋', requiresClass: false },
     { name: 'Instrument Library', icon: '🎺', requiresClass: false },
-    { name: 'Teaching Assistant Tasks', icon: '🧑‍🏫', requiresClass: false }
+    { name: 'Teaching Assistant Tasks', icon: '🧑‍🏫', requiresClass: false },
+    { name: 'Documentary Planning', icon: '🎬', requiresClass: false }
   ];
 
   return (

@@ -126,7 +126,7 @@ export const TeachingAssistantTasksSession: React.FC<TeachingAssistantTasksSessi
           id: job.id,
           title: job.title,
           description: job.description ?? '',
-          assignedTo: undefined,
+          assignedTo: null,
           completed: false
         };
       });
@@ -149,16 +149,16 @@ export const TeachingAssistantTasksSession: React.FC<TeachingAssistantTasksSessi
         { elementId: 'ta-tasks-qr' }
       );
     } catch (e) {
+      console.error('QR generation failed:', e);
       showError('Failed to generate QR code.');
     }
   };
 
-  // Ensure QR is generated after the lobby UI is rendered
   useEffect(() => {
     if (isLobby && sessionCode) {
       const t = setTimeout(() => {
         generateQRCode();
-      }, 0);
+      }, 100);
       return () => clearTimeout(t);
     }
   }, [isLobby, sessionCode]);

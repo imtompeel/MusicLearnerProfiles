@@ -625,7 +625,9 @@ export const HandGestureSession: React.FC<HandGestureSessionProps> = ({ onBack }
 
             // Start camera processing using a single requestAnimationFrame loop
             const processFrame = async () => {
-              if (videoRef.current && isCameraActive) {
+              // Use the presence of an active media stream rather than React state,
+              // so we don't get stuck with a stale isCameraActive value inside this closure.
+              if (videoRef.current && streamRef.current) {
                 const now = performance.now();
                 const minIntervalMs = minIntervalRef.current;
                 if (now - lastProcessTimeRef.current >= minIntervalMs) {
