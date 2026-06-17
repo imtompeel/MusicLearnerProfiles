@@ -4567,6 +4567,125 @@ body {
   background: white;
 }
 
+.controller-field-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #555;
+}
+
+.controller-midi-field {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.controller-midi-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.controller-device-select {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background: white;
+}
+
+.midi-channel-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 2px 4px;
+  background: white;
+  height: 36px;
+  box-sizing: border-box;
+}
+
+.midi-channel-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #888;
+  padding: 0 2px 0 4px;
+  text-transform: uppercase;
+}
+
+.midi-channel-value {
+  min-width: 1.25rem;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #333;
+  line-height: 1;
+}
+
+.midi-channel-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: #f0f4ff;
+  color: #667eea;
+  cursor: pointer;
+  padding: 0;
+  width: 22px;
+  height: 14px;
+  border-radius: 3px;
+  font-size: 0.55rem;
+  line-height: 1;
+}
+
+.midi-channel-chevron:hover:not(:disabled) {
+  background: #e0e8ff;
+}
+
+.midi-channel-chevron:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.controller-image-search-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.controller-image-search-inline input {
+  flex: 1;
+  min-width: 0;
+}
+
+.btn-reload-slot-image {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0;
+}
+
+.btn-reload-slot-image:hover:not(:disabled) {
+  background: #f0f4ff;
+  border-color: #667eea;
+}
+
+.btn-reload-slot-image:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 @media (max-width: 600px) {
   .midi-image-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -4577,4 +4696,110 @@ body {
     flex-direction: column;
     align-items: stretch;
   }
+}
+
+/* Firebase Auth */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.auth-card {
+  background: rgba(255, 255, 255, 0.97);
+  border-radius: 16px;
+  padding: 32px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+  text-align: center;
+}
+
+.auth-card h1 {
+  margin: 0 0 8px;
+  color: #2c3e50;
+  font-size: 1.6rem;
+}
+
+.auth-subtitle {
+  color: #666;
+  margin: 0 0 24px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.auth-form label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #555;
+  margin-top: 8px;
+}
+
+.auth-form input {
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.auth-password-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.auth-password-field input {
+  width: 100%;
+  padding-right: 4.5rem;
+  box-sizing: border-box;
+}
+
+.auth-password-toggle {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: #667eea;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 4px 6px;
+}
+
+.auth-password-toggle:hover {
+  color: #4a5fc8;
+}
+
+.auth-submit {
+  margin-top: 16px;
+  width: 100%;
+  padding: 12px;
+  font-size: 1rem;
+}
+
+.auth-toggle {
+  margin-top: 20px;
+  background: none;
+  border: none;
+  color: #667eea;
+  cursor: pointer;
+  font-size: 0.95rem;
+  text-decoration: underline;
+}
+
+.auth-loading {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  gap: 12px;
 }

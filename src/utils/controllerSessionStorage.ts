@@ -11,6 +11,7 @@ export type SavedControllerSlot = {
   deviceName?: string;
   midiChannel: number | null;
   uploadedImageUrl?: string;
+  uploadedImageStoragePath?: string;
   animation: SlotAnimation;
   image?: ImageSource;
 };

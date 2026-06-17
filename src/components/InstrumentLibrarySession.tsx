@@ -11,20 +11,10 @@ interface InstrumentLibrarySessionProps {
   onBack: () => void;
 }
 
-// 4-digit code to unlock the instrument library
-// Prefer setting VITE_INSTRUMENT_LIBRARY_CODE in your .env file.
-const INSTRUMENT_LIBRARY_CODE =
-  (typeof import.meta !== 'undefined' &&
-    (import.meta as any).env?.VITE_INSTRUMENT_LIBRARY_CODE) ||
-  '1234';
-
 export const InstrumentLibrarySession: React.FC<
   InstrumentLibrarySessionProps
 > = ({ onBack }) => {
   const { showSuccess, showError } = useStatus();
-
-  const [isUnlocked, setIsUnlocked] = useState(false);
-  const [codeInput, setCodeInput] = useState('');
 
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [loadingInstruments, setLoadingInstruments] = useState(false);
@@ -56,20 +46,8 @@ export const InstrumentLibrarySession: React.FC<
   };
 
   useEffect(() => {
-    if (isUnlocked) {
-      void loadInstruments();
-    }
-  }, [isUnlocked]);
-
-  const handleUnlock = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (codeInput.trim() === INSTRUMENT_LIBRARY_CODE) {
-      setIsUnlocked(true);
-      showSuccess('Instrument library unlocked');
-    } else {
-      showError('Incorrect code. Please try again.');
-    }
-  };
+    void loadInstruments();
+  }, []);
 
   const handleToggleInstrument = (instrumentId: string) => {
     setSelectedInstrumentIds((prev) =>
@@ -147,62 +125,6 @@ export const InstrumentLibrarySession: React.FC<
       setIsSavingLoan(false);
     }
   };
-
-  if (!isUnlocked) {
-    return (
-      <div className="instrument-library-session container">
-        <div className="session-header">
-          <button className="btn-back" type="button" onClick={onBack}>
-            ← Back to Sessions
-          </button>
-          <h2>🎺 Instrument Library (Locked)</h2>
-          <p>Enter the 4-digit code to manage instrument loans.</p>
-        </div>
-
-        <form
-          onSubmit={handleUnlock}
-          className="instrument-lock-form"
-          style={{
-            maxWidth: '320px',
-            margin: '40px auto',
-            textAlign: 'center',
-          }}
-        >
-          <label
-            htmlFor="instrument-code"
-            style={{ display: 'block', marginBottom: '8px' }}
-          >
-            4-digit code
-          </label>
-          <input
-            id="instrument-code"
-            type="password"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength={4}
-            value={codeInput}
-            onChange={(e) => setCodeInput(e.target.value)}
-            style={{
-              fontSize: '1.5rem',
-              textAlign: 'center',
-              letterSpacing: '0.4rem',
-              padding: '8px 12px',
-              width: '100%',
-              boxSizing: 'border-box',
-              marginBottom: '12px',
-            }}
-          />
-          <button
-            type="submit"
-            className="btn-teacher"
-            style={{ width: '100%' }}
-          >
-            Unlock
-          </button>
-        </form>
-      </div>
-    );
-  }
 
   return (
     <div className="instrument-library-session container">

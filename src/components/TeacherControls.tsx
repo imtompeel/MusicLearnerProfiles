@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { downloadCSV } from '../utils/csv';
 import type { StudentData, MusicQuestion } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 interface TeacherControlsProps {
   studentData: StudentData[];
@@ -17,6 +18,7 @@ export const TeacherControls: React.FC<TeacherControlsProps> = ({
   onToggleClassSelection,
   isClassSelectionVisible
 }) => {
+  const { user, logOut } = useAuth();
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -64,7 +66,7 @@ export const TeacherControls: React.FC<TeacherControlsProps> = ({
     <div className="teacher-controls">
       <div className="teacher-info" onClick={toggleCollapse} style={{ cursor: 'pointer' }}>
         <h3>👨‍🏫 Teacher Controls {isCollapsed ? '▶️' : '🔽'}</h3>
-        {!isCollapsed && <p>Manage classes and download data</p>}
+        {!isCollapsed && <p>Manage classes and download data{user?.email ? ` · ${user.email}` : ''}</p>}
       </div>
       {!isCollapsed && (
         <div className="teacher-buttons">
@@ -91,6 +93,12 @@ export const TeacherControls: React.FC<TeacherControlsProps> = ({
           onClick={handleClearAllData}
         >
           🗑️ Clear All Data
+        </button>
+        <button
+          className="btn-teacher"
+          onClick={() => void logOut()}
+        >
+          🚪 Sign out
         </button>
         </div>
       )}

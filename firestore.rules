@@ -2,30 +2,32 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow read/write access to sessions collection
+    // Student join sessions — open for classroom QR join flow
     match /sessions/{sessionCode} {
-      allow read, write: if true; // For development - restrict in production
+      allow read, write: if true;
     }
 
-    // Allow read/write access to classes collection
+    // Teacher class data — signed-in teachers only
     match /classes/{classId} {
-      allow read, write: if true; // For development - restrict in production
+      allow read, write: if request.auth != null;
     }
 
-    // Allow read/write access to instrument library collections
+    // Instrument library — signed-in teachers only
     match /instrument_library_instruments/{instrumentId} {
-      allow read, write: if true; // For development - restrict in production
+      allow read, write: if request.auth != null;
     }
     match /instrument_library_loans/{loanId} {
-      allow read, write: if true; // For development - restrict in production
+      allow read, write: if request.auth != null;
     }
 
-    // Allow read/write access to documentary planning collection
+    // Documentary planning — owner only
     match /documentary_planning/{planId} {
-      allow read, write: if true; // For development - restrict in production
+      allow create: if request.auth != null
+        && request.resource.data.ownerUid == request.auth.uid;
+      allow read, update, delete: if request.auth != null
+        && resource.data.ownerUid == request.auth.uid;
     }
 
-    // Block access to all other documents
     match /{document=**} {
       allow read, write: if false;
     }

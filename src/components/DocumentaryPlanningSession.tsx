@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useStatus } from '../hooks/useStatus';
+import { useAuth } from '../contexts/AuthContext';
 import {
   listDocumentaryPlanningSessions,
   loadDocumentaryPlanningSession,
@@ -71,19 +72,13 @@ type View = 'menu' | 'create' | 'resume' | 'grid';
 
 export const DocumentaryPlanningSession: React.FC<DocumentaryPlanningSessionProps> = ({ onBack }) => {
   const { showSuccess, showError } = useStatus();
+  const { user } = useAuth();
 
-  // --- navigation state ---
   const [view, setView] = useState<View>('menu');
 
-  // --- create form ---
-  const [newEmail, setNewEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-
-  // --- resume form ---
   const [sessionList, setSessionList] = useState<{ id: string; teacherEmail: string }[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [resumePassword, setResumePassword] = useState('');
 
   // --- active session ---
   const [session, setSession] = useState<DPSession | null>(null);
@@ -95,16 +90,17 @@ export const DocumentaryPlanningSession: React.FC<DocumentaryPlanningSessionProp
 
   // ---- helpers ----
   const fetchSessionList = useCallback(async () => {
+    if (!user?.uid) return;
     try {
       setLoadingList(true);
-      const list = await listDocumentaryPlanningSessions();
+      const list = await listDocumentaryPlanningSessions(user.uid);
       setSessionList(list);
     } catch {
       showError('Failed to load session list.');
     } finally {
       setLoadingList(false);
     }
-  }, [showError]);
+  }, [showError, user?.uid]);
 
   const openSession = (s: DPSession) => {
     setSession(s);
@@ -114,15 +110,15 @@ export const DocumentaryPlanningSession: React.FC<DocumentaryPlanningSessionProp
 
   // ---- create ----
   const handleCreate = async () => {
-    const email = newEmail.trim().toLowerCase();
-    const pwd = newPassword.trim();
-    if (!email || !email.includes('@')) { showError('Please enter a valid email address.'); return; }
-    if (!pwd) { showError('Please set a password.'); return; }
+    if (!user?.uid || !user.email) {
+      showError('You must be signed in to create a plan.');
+      return;
+    }
 
     try {
       setLoading(true);
-      const s = await createDocumentaryPlanningSession(email, pwd);
-      showSuccess(`Created documentary planning for ${email}.`);
+      const s = await createDocumentaryPlanningSession(user.uid, user.email);
+      showSuccess(`Created documentary planning for ${user.email}.`);
       openSession(s);
     } catch {
       showError('Failed to create session.');
@@ -137,16 +133,23 @@ export const DocumentaryPlanningSession: React.FC<DocumentaryPlanningSessionProp
   }, [view, fetchSessionList]);
 
   const handleResume = async () => {
-    if (!selectedSessionId) { showError('Please select a session.'); return; }
-    const pwd = resumePassword.trim();
-    if (!pwd) { showError('Please enter the password.'); return; }
+    if (!selectedSessionId) {
+      showError('Please select a plan.');
+      return;
+    }
+    if (!user?.uid) {
+      showError('You must be signed in to open a plan.');
+      return;
+    }
 
     try {
       setLoading(true);
-      const s = await loadDocumentaryPlanningSession(selectedSessionId);
-      if (!s) { showError('Session not found.'); return; }
-      if (s.password !== pwd) { showError('Incorrect password.'); return; }
-      showSuccess(`Resumed documentary planning for ${s.teacherEmail}.`);
+      const s = await loadDocumentaryPlanningSession(selectedSessionId, user.uid);
+      if (!s) {
+        showError('Plan not found or you do not have access.');
+        return;
+      }
+      showSuccess(`Opened documentary planning for ${s.teacherEmail}.`);
       openSession(s);
     } catch {
       showError('Failed to load session.');
@@ -379,27 +382,14 @@ export const DocumentaryPlanningSession: React.FC<DocumentaryPlanningSessionProp
         <div className="dp-menu">
           <div className="dp-form">
             <h3 style={{ margin: '0 0 4px' }}>Start New Plan</h3>
-            <label htmlFor="dp-email">Teacher Email Address</label>
-            <input
-              id="dp-email"
-              type="email"
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              placeholder="e.g. j.smith@school.org"
-              autoFocus
-            />
-            <label htmlFor="dp-password">Password</label>
-            <input
-              id="dp-password"
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Set a password for this plan"
-            />
+            <p style={{ color: '#555', margin: '0 0 16px' }}>
+              A new documentary plan will be saved to your account
+              {user?.email ? ` (${user.email})` : ''}.
+            </p>
             <div className="dp-form-actions">
               <button
                 className="dp-form-btn dp-form-btn-secondary"
-                onClick={() => { setView('menu'); setNewEmail(''); setNewPassword(''); }}
+                onClick={() => setView('menu')}
               >
                 Cancel
               </button>
@@ -408,7 +398,7 @@ export const DocumentaryPlanningSession: React.FC<DocumentaryPlanningSessionProp
                 onClick={handleCreate}
                 disabled={loading}
               >
-                {loading ? 'Creating…' : 'Create'}
+                {loading ? 'Creating…' : 'Create plan'}
               </button>
             </div>
           </div>
@@ -428,7 +418,7 @@ export const DocumentaryPlanningSession: React.FC<DocumentaryPlanningSessionProp
               </div>
             ) : (
               <>
-                <label>Select your email</label>
+                <label>Select a plan</label>
                 <div className="dp-session-list">
                   {sessionList.map((s) => (
                     <div
@@ -440,20 +430,12 @@ export const DocumentaryPlanningSession: React.FC<DocumentaryPlanningSessionProp
                     </div>
                   ))}
                 </div>
-                <label htmlFor="dp-resume-pwd">Password</label>
-                <input
-                  id="dp-resume-pwd"
-                  type="password"
-                  value={resumePassword}
-                  onChange={(e) => setResumePassword(e.target.value)}
-                  placeholder="Enter the plan password"
-                />
               </>
             )}
             <div className="dp-form-actions">
               <button
                 className="dp-form-btn dp-form-btn-secondary"
-                onClick={() => { setView('menu'); setSelectedSessionId(null); setResumePassword(''); }}
+                onClick={() => { setView('menu'); setSelectedSessionId(null); }}
               >
                 Cancel
               </button>

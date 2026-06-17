@@ -1,4 +1,4 @@
-import { collection, doc, getDocs, getDoc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, setDoc, deleteDoc, serverTimestamp, where } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
 const COLLECTION = 'documentary_planning';
@@ -14,15 +14,17 @@ export interface DocumentaryRowData {
 
 export interface DocumentaryPlanningSession {
   id: string;
+  ownerUid: string;
   teacherEmail: string;
-  password: string;
   entries: { [date: string]: DocumentaryRowData };
 }
 
-export async function listDocumentaryPlanningSessions(): Promise<Pick<DocumentaryPlanningSession, 'id' | 'teacherEmail'>[]> {
+export async function listDocumentaryPlanningSessions(
+  ownerUid: string
+): Promise<Pick<DocumentaryPlanningSession, 'id' | 'teacherEmail'>[]> {
   try {
     const ref = collection(db, COLLECTION);
-    const snapshot = await getDocs(ref);
+    const snapshot = await getDocs(query(ref, where('ownerUid', '==', ownerUid)));
     const sessions: Pick<DocumentaryPlanningSession, 'id' | 'teacherEmail'>[] = [];
     snapshot.forEach((docSnap) => {
       const data = docSnap.data();
@@ -36,16 +38,22 @@ export async function listDocumentaryPlanningSessions(): Promise<Pick<Documentar
   }
 }
 
-export async function loadDocumentaryPlanningSession(id: string): Promise<DocumentaryPlanningSession | null> {
+export async function loadDocumentaryPlanningSession(
+  id: string,
+  ownerUid: string
+): Promise<DocumentaryPlanningSession | null> {
   try {
     const docSnap = await getDoc(doc(db, COLLECTION, id));
     if (!docSnap.exists()) return null;
+
     const data = docSnap.data();
+    if (data.ownerUid !== ownerUid) return null;
+
     return {
       id: docSnap.id,
+      ownerUid: data.ownerUid ?? '',
       teacherEmail: data.teacherEmail ?? '',
-      password: data.password ?? '',
-      entries: data.entries ?? {},
+      entries: data.entries ?? {}
     };
   } catch (error) {
     console.error('Error loading documentary planning session:', error);
@@ -54,17 +62,17 @@ export async function loadDocumentaryPlanningSession(id: string): Promise<Docume
 }
 
 export async function createDocumentaryPlanningSession(
-  teacherEmail: string,
-  password: string
+  ownerUid: string,
+  teacherEmail: string
 ): Promise<DocumentaryPlanningSession> {
   const id = `dp-${teacherEmail.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}`;
-  const session: DocumentaryPlanningSession = { id, teacherEmail, password, entries: {} };
+  const session: DocumentaryPlanningSession = { id, ownerUid, teacherEmail, entries: {} };
   try {
     await setDoc(doc(db, COLLECTION, id), {
+      ownerUid,
       teacherEmail,
-      password,
       entries: {},
-      createdAt: serverTimestamp(),
+      createdAt: serverTimestamp()
     });
     return session;
   } catch (error) {

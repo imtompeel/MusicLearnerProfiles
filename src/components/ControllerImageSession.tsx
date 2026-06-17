@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useWebMidi, isNetworkMidiDevice, slotMatchesMidiEvent, formatMidiChannel, type MidiNoteEvent } from '../hooks/useWebMidi';
 import { useStatus } from '../hooks/useStatus';
-import { getPatternImageSources, type ImageSource } from '../utils/images';
+import { getPatternImageSources, getImageSource, clearPatternImageCache, type ImageSource } from '../utils/images';
 import { ControllerSlotImage } from './ControllerSlotImage';
 import {
   DEFAULT_SLOT_ANIMATION,
@@ -14,6 +14,11 @@ import {
   persistControllerSessions,
   type SavedControllerSession
 } from '../utils/controllerSessionStorage';
+import { useAuth } from '../contexts/AuthContext';
+import {
+  deleteControllerSlotImage,
+  uploadControllerSlotImage
+} from '../utils/controllerImageStorage';
 
 interface ControllerImageSessionProps {
   onBack: () => void;
@@ -27,6 +32,7 @@ type ImageSlot = {
   deviceName?: string;
   midiChannel: number | null;
   uploadedImageUrl?: string;
+  uploadedImageStoragePath?: string;
   image?: ImageSource;
   animation: SlotAnimation;
   revealed: boolean;
@@ -86,6 +92,7 @@ const toSavedSlots = (slots: ImageSlot[]) =>
       deviceName,
       midiChannel,
       uploadedImageUrl,
+      uploadedImageStoragePath,
       animation,
       image
     }) => ({
@@ -96,6 +103,7 @@ const toSavedSlots = (slots: ImageSlot[]) =>
       deviceName,
       midiChannel,
       uploadedImageUrl,
+      uploadedImageStoragePath,
       animation,
       image: uploadedImageUrl ? undefined : image
     })
@@ -109,6 +117,7 @@ const toPlaySlots = (saved: SavedControllerSession['slots']): ImageSlot[] =>
   }));
 
 export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ onBack }) => {
+  const { user } = useAuth();
   const { showSuccess, showError } = useStatus();
   const [slots, setSlots] = useState<ImageSlot[]>(createInitialSlots);
   const [isPlayMode, setIsPlayMode] = useState(false);
@@ -116,6 +125,8 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
   const [activeSlots, setActiveSlots] = useState<Record<string, boolean>>({});
   const [savedSessions, setSavedSessions] = useState<SavedControllerSession[]>([]);
   const [sessionName, setSessionName] = useState('');
+  const [reloadingSlots, setReloadingSlots] = useState<Record<string, boolean>>({});
+  const [uploadingSlots, setUploadingSlots] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setSavedSessions(loadSavedControllerSessions());
@@ -210,11 +221,22 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
   }, [applyImageSources]);
 
   const handleSearchTermChange = (id: string, searchTerm: string) => {
+    const slot = slots.find((s) => s.id === id);
+    if (slot?.uploadedImageStoragePath) {
+      void deleteControllerSlotImage(slot.uploadedImageStoragePath);
+    }
+
     setSlots((prev) =>
-      prev.map((slot) =>
-        slot.id === id
-          ? { ...slot, searchTerm, uploadedImageUrl: undefined, image: undefined }
-          : slot
+      prev.map((s) =>
+        s.id === id
+          ? {
+              ...s,
+              searchTerm,
+              uploadedImageUrl: undefined,
+              uploadedImageStoragePath: undefined,
+              image: undefined
+            }
+          : s
       )
     );
   };
@@ -251,6 +273,7 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
   };
 
   const handleChannelChange = (id: string, midiChannel: number) => {
+    if (midiChannel < 0 || midiChannel > 15) return;
     setSlots((prev) => {
       const target = prev.find((slot) => slot.id === id);
       if (!target?.deviceId) return prev;
@@ -271,32 +294,87 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
     });
   };
 
-  const handleFileUpload = (id: string, file: File | undefined) => {
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      showError('Please choose an image file');
+  const handleReloadSlotImage = async (id: string) => {
+    const slot = slots.find((s) => s.id === id);
+    if (!slot || slot.uploadedImageUrl) return;
+
+    const term = slot.searchTerm.trim();
+    if (!term) {
+      showError('Enter an image search term first');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
+    setReloadingSlots((prev) => ({ ...prev, [id]: true }));
+    try {
+      clearPatternImageCache([term]);
+      const image = await getImageSource(term, IMAGE_SIZE, IMAGE_SIZE, { bypassCache: true });
+      setSlots((prev) => prev.map((s) => (s.id === id ? { ...s, image } : s)));
+      showSuccess(`Reloaded image for "${term}"`);
+    } catch {
+      showError('Failed to reload image');
+    } finally {
+      setReloadingSlots((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
+  };
+
+  const handleFileUpload = async (id: string, file: File | undefined) => {
+    if (!file) return;
+    if (!user) {
+      showError('Sign in to upload images to cloud storage');
+      return;
+    }
+
+    const existingSlot = slots.find((slot) => slot.id === id);
+    const previousPath = existingSlot?.uploadedImageStoragePath;
+
+    setUploadingSlots((prev) => ({ ...prev, [id]: true }));
+    try {
+      const { url, storagePath } = await uploadControllerSlotImage(user.uid, id, file);
+
+      if (previousPath && previousPath !== storagePath) {
+        await deleteControllerSlotImage(previousPath);
+      }
+
       setSlots((prev) =>
         prev.map((slot) =>
           slot.id === id
-            ? { ...slot, uploadedImageUrl: reader.result as string, image: undefined }
+            ? {
+                ...slot,
+                uploadedImageUrl: url,
+                uploadedImageStoragePath: storagePath,
+                image: undefined
+              }
             : slot
         )
       );
-      showSuccess('Image uploaded');
-    };
-    reader.onerror = () => showError('Failed to read image file');
-    reader.readAsDataURL(file);
+      showSuccess('Image saved to cloud storage');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to upload image';
+      showError(message);
+    } finally {
+      setUploadingSlots((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
   };
 
-  const handleClearUpload = (id: string) => {
+  const handleClearUpload = async (id: string) => {
+    const slot = slots.find((s) => s.id === id);
+    if (slot?.uploadedImageStoragePath) {
+      await deleteControllerSlotImage(slot.uploadedImageStoragePath);
+    }
+
     setSlots((prev) =>
-      prev.map((slot) =>
-        slot.id === id ? { ...slot, uploadedImageUrl: undefined, image: undefined } : slot
+      prev.map((s) =>
+        s.id === id
+          ? { ...s, uploadedImageUrl: undefined, uploadedImageStoragePath: undefined, image: undefined }
+          : s
       )
     );
     loadImages();
@@ -331,7 +409,7 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
       setSessionName('');
       showSuccess(`Saved session "${trimmedName}"`);
     } catch {
-      showError('Failed to save session — storage may be full if images are very large');
+      showError('Failed to save session');
     }
   };
 
@@ -521,37 +599,53 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
                       Slot
                       <span className="slot-label">{slot.label}</span>
                     </label>
-                    <label>
-                      MIDI controller
-                      <select
-                        value={slot.deviceId}
-                        onChange={(e) => handleDeviceChange(slot.id, e.target.value)}
-                      >
-                        <option value="">— Select device —</option>
-                        {connectedInputs.map((device) => (
-                          <option key={device.id} value={device.id}>
-                            {device.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    {isNetworkMidiDevice(slot.deviceName) && (
-                      <label>
-                        MIDI channel
+                    <label className="controller-midi-field">
+                      <span className="controller-field-label">MIDI controller</span>
+                      <div className="controller-midi-inline">
                         <select
-                          value={slot.midiChannel ?? 0}
-                          onChange={(e) =>
-                            handleChannelChange(slot.id, parseInt(e.target.value, 10))
-                          }
+                          className="controller-device-select"
+                          value={slot.deviceId}
+                          onChange={(e) => handleDeviceChange(slot.id, e.target.value)}
                         >
-                          {Array.from({ length: 16 }, (_, channel) => (
-                            <option key={channel} value={channel}>
-                              Channel {channel + 1}
+                          <option value="">— Select device —</option>
+                          {connectedInputs.map((device) => (
+                            <option key={device.id} value={device.id}>
+                              {device.name}
                             </option>
                           ))}
                         </select>
-                      </label>
-                    )}
+                        {isNetworkMidiDevice(slot.deviceName) && (
+                          <div className="midi-channel-stepper" title="MIDI channel">
+                            <span className="midi-channel-label">Ch</span>
+                            <button
+                              type="button"
+                              className="midi-channel-chevron"
+                              aria-label="Previous channel"
+                              disabled={(slot.midiChannel ?? 0) <= 0}
+                              onClick={() =>
+                                handleChannelChange(slot.id, (slot.midiChannel ?? 0) - 1)
+                              }
+                            >
+                              ▲
+                            </button>
+                            <span className="midi-channel-value">
+                              {(slot.midiChannel ?? 0) + 1}
+                            </span>
+                            <button
+                              type="button"
+                              className="midi-channel-chevron"
+                              aria-label="Next channel"
+                              disabled={(slot.midiChannel ?? 0) >= 15}
+                              onClick={() =>
+                                handleChannelChange(slot.id, (slot.midiChannel ?? 0) + 1)
+                              }
+                            >
+                              ▼
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </label>
                     <label>
                       Repeat animation
                       <select
@@ -569,26 +663,44 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
                     </label>
                     <label>
                       Image search
-                      <input
-                        type="text"
-                        value={slot.searchTerm}
-                        onChange={(e) => handleSearchTermChange(slot.id, e.target.value)}
-                        placeholder="e.g. dog, star"
-                        disabled={Boolean(slot.uploadedImageUrl)}
-                      />
+                      <div className="controller-image-search-inline">
+                        <input
+                          type="text"
+                          value={slot.searchTerm}
+                          onChange={(e) => handleSearchTermChange(slot.id, e.target.value)}
+                          placeholder="e.g. dog, star"
+                          disabled={Boolean(slot.uploadedImageUrl)}
+                        />
+                        <button
+                          type="button"
+                          className="btn-reload-slot-image"
+                          title="Reload this image from Unsplash"
+                          disabled={Boolean(slot.uploadedImageUrl) || reloadingSlots[slot.id]}
+                          onClick={() => void handleReloadSlotImage(slot.id)}
+                        >
+                          {reloadingSlots[slot.id] ? '…' : '🔄'}
+                        </button>
+                      </div>
                     </label>
                     <label>
                       Upload image
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => handleFileUpload(slot.id, e.target.files?.[0])}
+                        disabled={uploadingSlots[slot.id]}
+                        onChange={(e) => {
+                          void handleFileUpload(slot.id, e.target.files?.[0]);
+                          e.target.value = '';
+                        }}
                       />
-                      {slot.uploadedImageUrl && (
+                      {uploadingSlots[slot.id] && (
+                        <span className="upload-status">Uploading…</span>
+                      )}
+                      {slot.uploadedImageUrl && !uploadingSlots[slot.id] && (
                         <button
                           type="button"
                           className="btn-clear-upload"
-                          onClick={() => handleClearUpload(slot.id)}
+                          onClick={() => void handleClearUpload(slot.id)}
                         >
                           Remove upload
                         </button>
@@ -658,6 +770,7 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
             ) : (
               <p className="midi-instructions">
                 Save your controller assignments, images, and animations to recall them later.
+                Uploaded images are stored in Firebase Storage and linked in the saved session.
               </p>
             )}
           </div>

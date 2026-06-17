@@ -1,12 +1,13 @@
 import { AppRouter } from './components/AppRouter';
+import { AuthProvider } from './contexts/AuthContext';
 import './App.css';
 
-/**
- * Main App component - now much simpler and modular
- * Delegates routing to AppRouter component
- */
 function App() {
-  return <AppRouter />;
+  return (
+    <AuthProvider>
+      <AppRouter />
+    </AuthProvider>
+  );
 }
 
 export default App;

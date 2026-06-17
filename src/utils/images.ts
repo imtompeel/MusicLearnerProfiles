@@ -6,8 +6,6 @@ export interface ImageSource {
   fallback: string; // emoji fallback
 }
 
-// Unsplash API for relevant images - 2025 API Standard
-// Query overrides to reduce ambiguity in results (e.g., flute vs trumpet, vacuum vs record player)
 const termQueryOverrides: { [key: string]: string } = {
   flute: 'flute isolated',
   clarinet: 'clarinet musical instrument woodwind isolated',
@@ -31,7 +29,6 @@ const termQueryOverrides: { [key: string]: string } = {
   balloon: 'colourful balloon party'
 };
 
-// Reasonable default emoji fallbacks for common terms; anything else uses a generic frame
 const defaultEmojiFallbacks: { [key: string]: string } = {
   dog: '🐕',
   cat: '🐱',
@@ -47,6 +44,11 @@ const defaultEmojiFallbacks: { [key: string]: string } = {
 };
 
 const termToImageCache: { [key: string]: ImageSource } = {};
+
+const FETCH_TIMEOUT_MS = 12_000;
+const FETCH_RETRIES = 2;
+const FETCH_RETRY_DELAY_MS = 800;
+const BETWEEN_REQUEST_DELAY_MS = 350;
 
 export const hasUnsplashApiKey = (): boolean => {
   const accessKey = import.meta.env.VITE_UNSPLASH_ACCESS_KEY;
@@ -65,6 +67,15 @@ const buildImageSource = (key: string, url: string): ImageSource => ({
 const isValidCachedSource = (source?: ImageSource): boolean =>
   Boolean(source?.url);
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Same-origin proxy in dev (see vite.config.ts); direct API in production builds. */
+const getUnsplashApiBase = (): string =>
+  import.meta.env.DEV ? '/api/unsplash' : 'https://api.unsplash.com';
+
+const getPlaceholderImageUrl = (term: string, width: number, height: number): string =>
+  `https://picsum.photos/seed/${encodeURIComponent(term.toLowerCase())}/${width}/${height}`;
+
 export const clearPatternImageCache = (keys?: string[]): void => {
   if (!keys) {
     Object.keys(termToImageCache).forEach((key) => delete termToImageCache[key]);
@@ -75,6 +86,32 @@ export const clearPatternImageCache = (keys?: string[]): void => {
   });
 };
 
+const fetchWithRetry = async (url: string, init?: RequestInit): Promise<Response> => {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= FETCH_RETRIES; attempt += 1) {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(url, {
+        ...init,
+        signal: controller.signal
+      });
+      window.clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      window.clearTimeout(timeoutId);
+      lastError = error;
+      if (attempt < FETCH_RETRIES) {
+        await sleep(FETCH_RETRY_DELAY_MS * (attempt + 1));
+      }
+    }
+  }
+
+  throw lastError;
+};
+
 export const getUnsplashImageUrl = async (
   searchTerm: string,
   width: number = 200,
@@ -83,21 +120,22 @@ export const getUnsplashImageUrl = async (
   const accessKey = import.meta.env.VITE_UNSPLASH_ACCESS_KEY;
 
   if (!hasUnsplashApiKey()) {
-    return '';
+    return getPlaceholderImageUrl(searchTerm, width, height);
   }
 
+  const override = termQueryOverrides[searchTerm.toLowerCase()];
+  const query = override || searchTerm;
+  const encodedTerm = encodeURIComponent(query);
+  const apiUrl =
+    `${getUnsplashApiBase()}/search/photos?query=${encodedTerm}` +
+    `&per_page=3&content_filter=high&order_by=relevant&orientation=squarish&client_id=${accessKey}`;
+
   try {
-    const override = termQueryOverrides[searchTerm.toLowerCase()];
-    const query = override || searchTerm;
-    const encodedTerm = encodeURIComponent(query);
-    const response = await fetch(
-      `https://api.unsplash.com/search/photos?query=${encodedTerm}&per_page=3&content_filter=high&order_by=relevant&orientation=squarish&client_id=${accessKey}`,
-      {
-        headers: {
-          'Accept-Version': 'v1'
-        }
+    const response = await fetchWithRetry(apiUrl, {
+      headers: {
+        'Accept-Version': 'v1'
       }
-    );
+    });
 
     if (!response.ok) {
       throw new Error(`Unsplash API error: ${response.status}`);
@@ -111,10 +149,10 @@ export const getUnsplashImageUrl = async (
       return `${baseUrl}&w=${width}&h=${height}&fit=crop&auto=format&q=80`;
     }
 
-    return '';
+    return getPlaceholderImageUrl(searchTerm, width, height);
   } catch (error) {
-    console.error('Failed to fetch Unsplash image:', error);
-    return '';
+    console.warn(`Unsplash unavailable for "${searchTerm}", using placeholder:`, error);
+    return getPlaceholderImageUrl(searchTerm, width, height);
   }
 };
 
@@ -128,10 +166,16 @@ export const getPatternImageSources = async (
   const imageSources: { [key: string]: ImageSource } = {};
   const bypassCache = options?.bypassCache ?? false;
 
-  const fetchPromises = uniqueKeys.map(async (key) => {
+  for (let index = 0; index < uniqueKeys.length; index += 1) {
+    const key = uniqueKeys[index];
+
     if (!bypassCache && isValidCachedSource(termToImageCache[key])) {
       imageSources[key] = termToImageCache[key];
-      return;
+      continue;
+    }
+
+    if (index > 0) {
+      await sleep(BETWEEN_REQUEST_DELAY_MS);
     }
 
     const url = await getUnsplashImageUrl(key, width, height);
@@ -143,9 +187,8 @@ export const getPatternImageSources = async (
     } else {
       delete termToImageCache[key];
     }
-  });
+  }
 
-  await Promise.all(fetchPromises);
   return imageSources;
 };
 
