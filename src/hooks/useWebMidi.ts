@@ -13,6 +13,11 @@ export interface MidiNoteEvent {
   deviceName?: string;
 }
 
+export interface MidiHandlers {
+  onNoteOn?: (event: MidiNoteEvent) => void;
+  onNoteOff?: (event: MidiNoteEvent) => void;
+}
+
 export const isNetworkMidiDevice = (name?: string): boolean =>
   Boolean(name && /network/i.test(name));
 
@@ -34,12 +39,27 @@ export function slotMatchesMidiEvent(
   return midiChannel === event.channel;
 }
 
-export function useWebMidi(onNoteOn?: (event: MidiNoteEvent) => void) {
+const buildMidiEvent = (
+  input: MIDIInput | null | undefined,
+  status: number,
+  note: number,
+  velocity: number
+): MidiNoteEvent => ({
+  note,
+  velocity,
+  channel: status & 0x0f,
+  deviceId: input?.id ?? 'unknown',
+  deviceName: input?.name ?? undefined
+});
+
+export function useWebMidi(handlers?: MidiHandlers) {
   const [isEnabled, setIsEnabled] = useState(false);
   const [lastEvent, setLastEvent] = useState<MidiNoteEvent | null>(null);
   const [connectedInputs, setConnectedInputs] = useState<MidiInputDevice[]>([]);
-  const callbackRef = useRef(onNoteOn);
-  callbackRef.current = onNoteOn;
+  const onNoteOnRef = useRef(handlers?.onNoteOn);
+  const onNoteOffRef = useRef(handlers?.onNoteOff);
+  onNoteOnRef.current = handlers?.onNoteOn;
+  onNoteOffRef.current = handlers?.onNoteOff;
 
   const refreshInputs = useCallback((access: MIDIAccess) => {
     const devices = Array.from(access.inputs.values())
@@ -65,18 +85,19 @@ export function useWebMidi(onNoteOn?: (event: MidiNoteEvent) => void) {
 
       const [status, note, velocity] = data;
       const command = status & 0xf0;
+      const input = event.currentTarget as MIDIInput;
+      const isNoteOn = command === 0x90 && velocity > 0;
+      const isNoteOff = command === 0x80 || (command === 0x90 && velocity === 0);
 
-      if (command === 0x90 && velocity > 0) {
-        const input = event.currentTarget as MIDIInput;
-        const midiEvent: MidiNoteEvent = {
-          note,
-          velocity,
-          channel: status & 0x0f,
-          deviceId: input?.id ?? 'unknown',
-          deviceName: input?.name ?? undefined
-        };
-        setLastEvent(midiEvent);
-        callbackRef.current?.(midiEvent);
+      if (!isNoteOn && !isNoteOff) return;
+
+      const midiEvent = buildMidiEvent(input, status, note, isNoteOn ? velocity : 0);
+      setLastEvent(midiEvent);
+
+      if (isNoteOn) {
+        onNoteOnRef.current?.(midiEvent);
+      } else {
+        onNoteOffRef.current?.(midiEvent);
       }
     };
 
@@ -115,7 +136,7 @@ export function useWebMidi(onNoteOn?: (event: MidiNoteEvent) => void) {
     };
   }, [refreshInputs]);
 
-  const simulateDevice = useCallback(
+  const simulateNoteOn = useCallback(
     (deviceId: string, deviceName?: string, channel = 0) => {
       const midiEvent: MidiNoteEvent = {
         note: 60,
@@ -125,10 +146,25 @@ export function useWebMidi(onNoteOn?: (event: MidiNoteEvent) => void) {
         deviceName
       };
       setLastEvent(midiEvent);
-      callbackRef.current?.(midiEvent);
+      onNoteOnRef.current?.(midiEvent);
+      return midiEvent;
     },
     []
   );
 
-  return { isEnabled, lastEvent, connectedInputs, simulateDevice };
+  const simulateNoteOff = useCallback((event: MidiNoteEvent) => {
+    const midiEvent: MidiNoteEvent = { ...event, velocity: 0 };
+    setLastEvent(midiEvent);
+    onNoteOffRef.current?.(midiEvent);
+  }, []);
+
+  const simulateDevice = useCallback(
+    (deviceId: string, deviceName?: string, channel = 0, holdMs = 800) => {
+      const noteOn = simulateNoteOn(deviceId, deviceName, channel);
+      window.setTimeout(() => simulateNoteOff(noteOn), holdMs);
+    },
+    [simulateNoteOn, simulateNoteOff]
+  );
+
+  return { isEnabled, lastEvent, connectedInputs, simulateDevice, simulateNoteOn, simulateNoteOff };
 };

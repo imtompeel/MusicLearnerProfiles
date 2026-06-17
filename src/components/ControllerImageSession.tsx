@@ -9,6 +9,12 @@ import {
   type SlotAnimation
 } from '../data/controllerAnimations';
 
+import {
+  loadSavedControllerSessions,
+  persistControllerSessions,
+  type SavedControllerSession
+} from '../utils/controllerSessionStorage';
+
 interface ControllerImageSessionProps {
   onBack: () => void;
 }
@@ -70,12 +76,59 @@ const isSlotConfigured = (slot: ImageSlot): boolean => {
   return true;
 };
 
+const toSavedSlots = (slots: ImageSlot[]) =>
+  slots.map(
+    ({
+      id,
+      label,
+      searchTerm,
+      deviceId,
+      deviceName,
+      midiChannel,
+      uploadedImageUrl,
+      animation,
+      image
+    }) => ({
+      id,
+      label,
+      searchTerm,
+      deviceId,
+      deviceName,
+      midiChannel,
+      uploadedImageUrl,
+      animation,
+      image: uploadedImageUrl ? undefined : image
+    })
+  );
+
+const toPlaySlots = (saved: SavedControllerSession['slots']): ImageSlot[] =>
+  saved.map((slot) => ({
+    ...slot,
+    revealed: false,
+    triggerCount: 0
+  }));
+
 export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ onBack }) => {
   const { showSuccess, showError } = useStatus();
   const [slots, setSlots] = useState<ImageSlot[]>(createInitialSlots);
   const [isPlayMode, setIsPlayMode] = useState(false);
   const [isLoadingImages, setIsLoadingImages] = useState(false);
-  const [animateTokens, setAnimateTokens] = useState<Record<string, number>>({});
+  const [activeSlots, setActiveSlots] = useState<Record<string, boolean>>({});
+  const [savedSessions, setSavedSessions] = useState<SavedControllerSession[]>([]);
+  const [sessionName, setSessionName] = useState('');
+
+  useEffect(() => {
+    setSavedSessions(loadSavedControllerSessions());
+  }, []);
+
+  const setSlotActive = useCallback((slotId: string, active: boolean) => {
+    setActiveSlots((prev) => {
+      if (active) return { ...prev, [slotId]: true };
+      const next = { ...prev };
+      delete next[slotId];
+      return next;
+    });
+  }, []);
 
   const handleNoteOn = useCallback((event: MidiNoteEvent) => {
     setSlots((prev) => {
@@ -84,28 +137,36 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
       );
       if (slotIndex === -1) return prev;
 
-      const targetSlot = prev[slotIndex];
-      const nextCount = targetSlot.triggerCount + 1;
-
-      if (nextCount > 1) {
-        setAnimateTokens((tokens) => ({
-          ...tokens,
-          [targetSlot.id]: (tokens[targetSlot.id] || 0) + 1
-        }));
-      }
+      const targetId = prev[slotIndex].id;
+      setSlotActive(targetId, true);
 
       return prev.map((slot, index) => {
         if (index !== slotIndex) return slot;
         return {
           ...slot,
           revealed: true,
-          triggerCount: nextCount
+          triggerCount: slot.triggerCount + 1
         };
       });
     });
-  }, []);
+  }, [setSlotActive]);
 
-  const { isEnabled, lastEvent, connectedInputs, simulateDevice } = useWebMidi(handleNoteOn);
+  const handleNoteOff = useCallback((event: MidiNoteEvent) => {
+    setSlots((prev) => {
+      const slotIndex = prev.findIndex((slot) =>
+        slotMatchesMidiEvent(slot.deviceId, slot.midiChannel, slot.deviceName, event)
+      );
+      if (slotIndex === -1) return prev;
+
+      setSlotActive(prev[slotIndex].id, false);
+      return prev;
+    });
+  }, [setSlotActive]);
+
+  const { isEnabled, lastEvent, connectedInputs, simulateDevice } = useWebMidi({
+    onNoteOn: handleNoteOn,
+    onNoteOff: handleNoteOff
+  });
 
   const applyImageSources = useCallback(
     (sources: Record<string, ImageSource>) => {
@@ -249,9 +310,69 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
 
   const handleReset = () => {
     setSlots(createInitialSlots());
-    setAnimateTokens({});
+    setActiveSlots({});
     loadImages();
     showSuccess('Session reset — images hidden until played again');
+  };
+
+  const handleSaveSession = () => {
+    const trimmedName = sessionName.trim() || 'Unnamed session';
+    const newSession: SavedControllerSession = {
+      id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      name: trimmedName,
+      createdAt: new Date().toISOString(),
+      slots: toSavedSlots(slots)
+    };
+
+    try {
+      const updated = [...savedSessions, newSession];
+      persistControllerSessions(updated);
+      setSavedSessions(updated);
+      setSessionName('');
+      showSuccess(`Saved session "${trimmedName}"`);
+    } catch {
+      showError('Failed to save session — storage may be full if images are very large');
+    }
+  };
+
+  const handleLoadSession = async (session: SavedControllerSession) => {
+    const loadedSlots = toPlaySlots(session.slots);
+    setSlots(loadedSlots);
+    setActiveSlots({});
+
+    const terms = loadedSlots
+      .filter((slot) => !slot.uploadedImageUrl)
+      .map((slot) => slot.searchTerm.trim())
+      .filter(Boolean);
+
+    if (terms.length > 0) {
+      setIsLoadingImages(true);
+      try {
+        const sources = await getPatternImageSources(terms, IMAGE_SIZE, IMAGE_SIZE, {
+          bypassCache: true
+        });
+        setSlots((prev) =>
+          prev.map((slot) => {
+            if (slot.uploadedImageUrl) return slot;
+            return {
+              ...slot,
+              image: sources[slot.searchTerm.trim()] || slot.image
+            };
+          })
+        );
+      } finally {
+        setIsLoadingImages(false);
+      }
+    }
+
+    showSuccess(`Loaded session "${session.name}"`);
+  };
+
+  const handleDeleteSession = (sessionId: string) => {
+    const updated = savedSessions.filter((session) => session.id !== sessionId);
+    persistControllerSessions(updated);
+    setSavedSessions(updated);
+    showSuccess('Saved session deleted');
   };
 
   const handleTestSlot = (slot: ImageSlot) => {
@@ -282,8 +403,8 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
         <h2>🎛️ Controller Image Play</h2>
         {!isPlayMode && (
           <p>
-            Assign each CMPSR or Odd Ball to an image slot and pick its animation. Any note
-            from that controller reveals and animates its image.
+            Assign each CMPSR or Odd Ball to an image slot and pick its animation. The image
+            animates while you hold a note and stops when you release.
           </p>
         )}
         <div className="student-ui-toggle">
@@ -321,7 +442,7 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
                     fallback={slotFallback(slot)}
                     imageClassName="midi-slot-image"
                     repeatAnimation={slot.animation}
-                    animateToken={animateTokens[slot.id] || 0}
+                    isAnimating={Boolean(activeSlots[slot.id])}
                     isFirstReveal={slot.triggerCount === 1}
                   />
                 ) : (
@@ -485,6 +606,60 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
                 </div>
               ))}
             </div>
+          </div>
+
+          <div className="preset-section controller-sessions-section">
+            <h3>💾 Saved sessions</h3>
+            <div className="preset-save-row">
+              <input
+                type="text"
+                value={sessionName}
+                onChange={(e) => setSessionName(e.target.value)}
+                placeholder="Name this setup (e.g. Year 5 CMPSR)"
+                className="preset-name-input"
+              />
+              <button type="button" className="btn-save-preset" onClick={handleSaveSession}>
+                Save session
+              </button>
+            </div>
+            {savedSessions.length > 0 ? (
+              <div className="preset-list">
+                {savedSessions.map((session) => (
+                  <div key={session.id} className="preset-item">
+                    <div className="preset-info">
+                      <strong>{session.name}</strong>
+                      <span className="preset-meta">
+                        {session.slots.length} slots
+                        {session.slots.filter((s) => s.deviceId).length > 0
+                          ? ` · ${session.slots.filter((s) => s.deviceId).length} controllers assigned`
+                          : ''}
+                      </span>
+                    </div>
+                    <div className="preset-actions">
+                      <button
+                        type="button"
+                        className="btn-load-preset"
+                        onClick={() => handleLoadSession(session)}
+                      >
+                        Load
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-delete-preset"
+                        onClick={() => handleDeleteSession(session.id)}
+                        title="Delete this saved session"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="midi-instructions">
+                Save your controller assignments, images, and animations to recall them later.
+              </p>
+            )}
           </div>
         </>
       )}

@@ -1,10 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   REPEAT_ANIMATION_CLASS,
   type SlotAnimation
 } from '../data/controllerAnimations';
-
-const ALL_ANIM_CLASSES = ['anim-appear', ...Object.values(REPEAT_ANIMATION_CLASS)];
 
 interface ControllerSlotImageProps {
   url?: string;
@@ -13,7 +11,7 @@ interface ControllerSlotImageProps {
   className?: string;
   imageClassName?: string;
   repeatAnimation?: SlotAnimation;
-  animateToken?: number;
+  isAnimating?: boolean;
   isFirstReveal?: boolean;
 }
 
@@ -24,37 +22,42 @@ export const ControllerSlotImage: React.FC<ControllerSlotImageProps> = ({
   className = '',
   imageClassName = '',
   repeatAnimation = 'jiggle',
-  animateToken = 0,
+  isAnimating = false,
   isFirstReveal = false
 }) => {
   const [imgFailed, setImgFailed] = useState(false);
-  const contentRef = useRef<HTMLDivElement>(null);
+  const [appearDone, setAppearDone] = useState(false);
 
   useEffect(() => {
     setImgFailed(false);
   }, [url]);
 
   useEffect(() => {
-    if (!animateToken) return;
-    const el = contentRef.current;
-    if (!el) return;
-    ALL_ANIM_CLASSES.forEach((cls) => el.classList.remove(cls));
-    void el.offsetWidth;
-    el.classList.add(REPEAT_ANIMATION_CLASS[repeatAnimation]);
-  }, [animateToken, repeatAnimation]);
+    if (isFirstReveal) {
+      setAppearDone(false);
+    }
+  }, [isFirstReveal]);
 
   const showImage = Boolean(url) && !imgFailed;
+  const showAppear = isFirstReveal && isAnimating && !appearDone;
+  const showLoop = isAnimating && (!isFirstReveal || appearDone);
 
   return (
     <div
-      ref={contentRef}
       className={[
         'controller-slot-image',
         className,
-        isFirstReveal ? 'anim-appear' : ''
+        showAppear ? 'anim-appear' : '',
+        showLoop ? 'anim-loop' : '',
+        showLoop ? REPEAT_ANIMATION_CLASS[repeatAnimation] : ''
       ]
         .filter(Boolean)
         .join(' ')}
+      onAnimationEnd={(event) => {
+        if (event.animationName === 'midi-image-appear') {
+          setAppearDone(true);
+        }
+      }}
     >
       {showImage ? (
         <img

@@ -4279,6 +4279,31 @@ body {
   animation: midi-image-appear 0.5s ease-out;
 }
 
+.controller-slot-image.anim-loop.anim-jiggle {
+  animation: midi-image-jiggle 0.45s ease-in-out infinite;
+}
+
+.controller-slot-image.anim-loop.anim-pulse {
+  animation: midi-image-pulse 0.5s ease-in-out infinite;
+}
+
+.controller-slot-image.anim-loop.anim-shake {
+  animation: midi-image-shake 0.45s ease-in-out infinite;
+}
+
+.controller-slot-image.anim-loop.anim-bounce {
+  animation: midi-image-bounce 0.55s ease-out infinite;
+}
+
+.controller-slot-image.anim-loop.anim-spin {
+  animation: midi-image-spin 0.55s linear infinite;
+}
+
+.controller-slot-image.anim-loop.anim-zoom {
+  animation: midi-image-zoom 0.45s ease-out infinite;
+}
+
+/* Legacy single-play classes kept for setup preview */
 .controller-slot-image.jiggling,
 .controller-slot-image.anim-jiggle {
   animation: midi-image-jiggle 0.45s ease-in-out;
@@ -4394,6 +4419,10 @@ body {
   border-radius: 12px;
   padding: 24px;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  margin-top: 20px;
+}
+
+.controller-sessions-section {
   margin-top: 20px;
 }
 
