@@ -1,0 +1,493 @@
+import React, { useState, useCallback, useEffect } from 'react';
+import { useWebMidi, isNetworkMidiDevice, slotMatchesMidiEvent, formatMidiChannel, type MidiNoteEvent } from '../hooks/useWebMidi';
+import { useStatus } from '../hooks/useStatus';
+import { getPatternImageSources, type ImageSource } from '../utils/images';
+import { ControllerSlotImage } from './ControllerSlotImage';
+import {
+  DEFAULT_SLOT_ANIMATION,
+  SLOT_ANIMATIONS,
+  type SlotAnimation
+} from '../data/controllerAnimations';
+
+interface ControllerImageSessionProps {
+  onBack: () => void;
+}
+
+type ImageSlot = {
+  id: string;
+  label: string;
+  searchTerm: string;
+  deviceId: string;
+  deviceName?: string;
+  midiChannel: number | null;
+  uploadedImageUrl?: string;
+  image?: ImageSource;
+  animation: SlotAnimation;
+  revealed: boolean;
+  triggerCount: number;
+};
+
+const IMAGE_SIZE = 240;
+
+const DEFAULT_SLOTS: Omit<ImageSlot, 'revealed' | 'triggerCount' | 'image' | 'deviceId' | 'deviceName' | 'midiChannel' | 'animation'>[] = [
+  { id: 'slot-1', label: 'Controller 1', searchTerm: 'dog' },
+  { id: 'slot-2', label: 'Controller 2', searchTerm: 'cat' },
+  { id: 'slot-3', label: 'Controller 3', searchTerm: 'star' },
+  { id: 'slot-4', label: 'Controller 4', searchTerm: 'rainbow' },
+  { id: 'slot-5', label: 'Controller 5', searchTerm: 'drum' },
+  { id: 'slot-6', label: 'Controller 6', searchTerm: 'balloon' }
+];
+
+const createInitialSlots = (): ImageSlot[] =>
+  DEFAULT_SLOTS.map((slot) => ({
+    ...slot,
+    deviceId: '',
+    midiChannel: null,
+    animation: DEFAULT_SLOT_ANIMATION,
+    revealed: false,
+    triggerCount: 0
+  }));
+
+const slotImageUrl = (slot: ImageSlot): string =>
+  slot.uploadedImageUrl || slot.image?.url || '';
+
+const slotFallback = (slot: ImageSlot): string => slot.image?.fallback || '🖼️';
+
+const slotAssignmentMatches = (
+  slot: ImageSlot,
+  deviceId: string,
+  midiChannel: number | null,
+  deviceName?: string
+): boolean => {
+  if (slot.deviceId !== deviceId) return false;
+  if (isNetworkMidiDevice(deviceName)) return slot.midiChannel === midiChannel;
+  return true;
+};
+
+const isSlotConfigured = (slot: ImageSlot): boolean => {
+  if (!slot.deviceId) return false;
+  if (isNetworkMidiDevice(slot.deviceName)) return slot.midiChannel !== null;
+  return true;
+};
+
+export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ onBack }) => {
+  const { showSuccess, showError } = useStatus();
+  const [slots, setSlots] = useState<ImageSlot[]>(createInitialSlots);
+  const [isPlayMode, setIsPlayMode] = useState(false);
+  const [isLoadingImages, setIsLoadingImages] = useState(false);
+  const [animateTokens, setAnimateTokens] = useState<Record<string, number>>({});
+
+  const handleNoteOn = useCallback((event: MidiNoteEvent) => {
+    setSlots((prev) => {
+      const slotIndex = prev.findIndex((slot) =>
+        slotMatchesMidiEvent(slot.deviceId, slot.midiChannel, slot.deviceName, event)
+      );
+      if (slotIndex === -1) return prev;
+
+      const targetSlot = prev[slotIndex];
+      const nextCount = targetSlot.triggerCount + 1;
+
+      if (nextCount > 1) {
+        setAnimateTokens((tokens) => ({
+          ...tokens,
+          [targetSlot.id]: (tokens[targetSlot.id] || 0) + 1
+        }));
+      }
+
+      return prev.map((slot, index) => {
+        if (index !== slotIndex) return slot;
+        return {
+          ...slot,
+          revealed: true,
+          triggerCount: nextCount
+        };
+      });
+    });
+  }, []);
+
+  const { isEnabled, lastEvent, connectedInputs, simulateDevice } = useWebMidi(handleNoteOn);
+
+  const applyImageSources = useCallback(
+    (sources: Record<string, ImageSource>) => {
+      setSlots((prev) =>
+        prev.map((slot) => {
+          if (slot.uploadedImageUrl) return slot;
+          return {
+            ...slot,
+            image: sources[slot.searchTerm.trim()] || slot.image
+          };
+        })
+      );
+    },
+    []
+  );
+
+  const loadImages = useCallback(async () => {
+    setIsLoadingImages(true);
+    try {
+      let terms: string[] = [];
+      setSlots((prev) => {
+        terms = prev.map((slot) => slot.searchTerm);
+        return prev;
+      });
+      const sources = await getPatternImageSources(terms, IMAGE_SIZE, IMAGE_SIZE);
+      applyImageSources(sources);
+      showSuccess('Images loaded — play a controller to reveal its image');
+    } catch {
+      showError('Failed to load images');
+    } finally {
+      setIsLoadingImages(false);
+    }
+  }, [applyImageSources, showSuccess, showError]);
+
+  useEffect(() => {
+    const terms = DEFAULT_SLOTS.map((slot) => slot.searchTerm);
+    setIsLoadingImages(true);
+    getPatternImageSources(terms, IMAGE_SIZE, IMAGE_SIZE)
+      .then(applyImageSources)
+      .finally(() => setIsLoadingImages(false));
+  }, [applyImageSources]);
+
+  const handleSearchTermChange = (id: string, searchTerm: string) => {
+    setSlots((prev) =>
+      prev.map((slot) =>
+        slot.id === id
+          ? { ...slot, searchTerm, uploadedImageUrl: undefined, image: undefined }
+          : slot
+      )
+    );
+  };
+
+  const handleDeviceChange = (id: string, deviceId: string) => {
+    const device = connectedInputs.find((d) => d.id === deviceId);
+    const deviceName = device?.name;
+    const network = isNetworkMidiDevice(deviceName);
+
+    setSlots((prev) => {
+      const target = prev.find((slot) => slot.id === id);
+      const newChannel = network ? (target?.midiChannel ?? 0) : null;
+
+      return prev.map((slot) => {
+        if (slot.id === id) {
+          if (!deviceId) {
+            return { ...slot, deviceId: '', deviceName: undefined, midiChannel: null };
+          }
+          return {
+            ...slot,
+            deviceId,
+            deviceName,
+            midiChannel: network ? slot.midiChannel ?? 0 : null
+          };
+        }
+
+        if (deviceId && slotAssignmentMatches(slot, deviceId, newChannel, deviceName)) {
+          return { ...slot, deviceId: '', deviceName: undefined, midiChannel: null };
+        }
+
+        return slot;
+      });
+    });
+  };
+
+  const handleChannelChange = (id: string, midiChannel: number) => {
+    setSlots((prev) => {
+      const target = prev.find((slot) => slot.id === id);
+      if (!target?.deviceId) return prev;
+
+      return prev.map((slot) => {
+        if (slot.id === id) {
+          return { ...slot, midiChannel };
+        }
+        if (
+          slot.deviceId === target.deviceId &&
+          slot.midiChannel === midiChannel &&
+          isNetworkMidiDevice(target.deviceName)
+        ) {
+          return { ...slot, deviceId: '', deviceName: undefined, midiChannel: null };
+        }
+        return slot;
+      });
+    });
+  };
+
+  const handleFileUpload = (id: string, file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showError('Please choose an image file');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSlots((prev) =>
+        prev.map((slot) =>
+          slot.id === id
+            ? { ...slot, uploadedImageUrl: reader.result as string, image: undefined }
+            : slot
+        )
+      );
+      showSuccess('Image uploaded');
+    };
+    reader.onerror = () => showError('Failed to read image file');
+    reader.readAsDataURL(file);
+  };
+
+  const handleClearUpload = (id: string) => {
+    setSlots((prev) =>
+      prev.map((slot) =>
+        slot.id === id ? { ...slot, uploadedImageUrl: undefined, image: undefined } : slot
+      )
+    );
+    loadImages();
+  };
+
+  const handleAnimationChange = (id: string, animation: SlotAnimation) => {
+    setSlots((prev) =>
+      prev.map((slot) => (slot.id === id ? { ...slot, animation } : slot))
+    );
+  };
+
+  const handleReset = () => {
+    setSlots(createInitialSlots());
+    setAnimateTokens({});
+    loadImages();
+    showSuccess('Session reset — images hidden until played again');
+  };
+
+  const handleTestSlot = (slot: ImageSlot) => {
+    if (!isSlotConfigured(slot)) return;
+    simulateDevice(slot.deviceId, slot.deviceName, slot.midiChannel ?? 0);
+  };
+
+  const assignedSlots = slots.filter(isSlotConfigured);
+  const playSlots = assignedSlots.length > 0 ? assignedSlots : slots;
+
+  const formatLastEvent = () => {
+    if (!lastEvent) return '';
+    const parts = [lastEvent.deviceName ?? 'Unknown device'];
+    if (isNetworkMidiDevice(lastEvent.deviceName)) {
+      parts.push(formatMidiChannel(lastEvent.channel));
+    }
+    return parts.join(' · ');
+  };
+
+  return (
+    <div className={`controller-image-session ${isPlayMode ? 'play-mode' : ''}`}>
+      <div className="session-header">
+        {!isPlayMode && (
+          <button className="btn-back" onClick={onBack} type="button">
+            ← Back to Sessions
+          </button>
+        )}
+        <h2>🎛️ Controller Image Play</h2>
+        {!isPlayMode && (
+          <p>
+            Assign each CMPSR or Odd Ball to an image slot and pick its animation. Any note
+            from that controller reveals and animates its image.
+          </p>
+        )}
+        <div className="student-ui-toggle">
+          <label className="toggle-switch">
+            <input
+              type="checkbox"
+              checked={isPlayMode}
+              onChange={(e) => setIsPlayMode(e.target.checked)}
+            />
+            <span className="toggle-slider" />
+            <span className="toggle-label">Play mode</span>
+          </label>
+        </div>
+      </div>
+
+      {isPlayMode ? (
+        <div className="controller-play-stage">
+          <button
+            className="btn-back play-mode-back"
+            onClick={() => setIsPlayMode(false)}
+            type="button"
+          >
+            ← Setup
+          </button>
+          <div className="midi-image-grid">
+            {playSlots.map((slot) => (
+              <div
+                key={slot.id}
+                className={['midi-image-slot', slot.revealed ? 'revealed' : 'hidden'].join(' ')}
+              >
+                {slot.revealed ? (
+                  <ControllerSlotImage
+                    url={slotImageUrl(slot)}
+                    alt={slot.image?.alt || slot.label}
+                    fallback={slotFallback(slot)}
+                    imageClassName="midi-slot-image"
+                    repeatAnimation={slot.animation}
+                    animateToken={animateTokens[slot.id] || 0}
+                    isFirstReveal={slot.triggerCount === 1}
+                  />
+                ) : (
+                  <span className="midi-slot-placeholder">?</span>
+                )}
+              </div>
+            ))}
+          </div>
+          {lastEvent && <p className="play-mode-hint">Last played: {formatLastEvent()}</p>}
+        </div>
+      ) : (
+        <>
+          <div className="midi-section">
+            <h3>🎹 MIDI Status</h3>
+            <div className="midi-status">
+              <span className={`midi-indicator ${isEnabled ? 'connected' : 'disconnected'}`}>
+                {isEnabled ? '🟢 MIDI ready' : '🔴 MIDI not available'}
+              </span>
+              {lastEvent && (
+                <span className="midi-note">Last played: {formatLastEvent()}</span>
+              )}
+            </div>
+            {connectedInputs.length > 0 ? (
+              <ul className="midi-device-list">
+                {connectedInputs.map((device) => (
+                  <li key={device.id}>
+                    <span className="midi-device-name">{device.name}</span>
+                    {isNetworkMidiDevice(device.name) && (
+                      <span className="midi-device-hint"> — assign a channel per slot</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="midi-instructions">
+                No MIDI inputs detected. Route each controller through MIDI Studio as a separate
+                input so the browser can tell them apart.
+              </p>
+            )}
+            <p className="midi-instructions">
+              For direct USB or Bluetooth controllers, pick the device name. For a Network session,
+              pick Network and choose the MIDI channel each controller is using (1–16).
+            </p>
+          </div>
+
+          <div className="controller-slot-setup">
+            <div className="controller-setup-header">
+              <h3>🖼️ Controller images</h3>
+              <div className="controller-setup-actions">
+                <button
+                  type="button"
+                  className="btn-search"
+                  onClick={loadImages}
+                  disabled={isLoadingImages}
+                >
+                  {isLoadingImages ? 'Loading…' : '🔄 Reload images'}
+                </button>
+                <button type="button" className="btn-dismiss" onClick={handleReset}>
+                  Reset session
+                </button>
+              </div>
+            </div>
+
+            <div className="controller-slot-list">
+              {slots.map((slot) => (
+                <div key={slot.id} className="controller-slot-row">
+                  <div className="controller-slot-preview">
+                    <ControllerSlotImage
+                      url={slotImageUrl(slot)}
+                      alt={slot.label}
+                      fallback={slotFallback(slot)}
+                    />
+                  </div>
+                  <div className="controller-slot-fields">
+                    <label>
+                      Slot
+                      <span className="slot-label">{slot.label}</span>
+                    </label>
+                    <label>
+                      MIDI controller
+                      <select
+                        value={slot.deviceId}
+                        onChange={(e) => handleDeviceChange(slot.id, e.target.value)}
+                      >
+                        <option value="">— Select device —</option>
+                        {connectedInputs.map((device) => (
+                          <option key={device.id} value={device.id}>
+                            {device.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {isNetworkMidiDevice(slot.deviceName) && (
+                      <label>
+                        MIDI channel
+                        <select
+                          value={slot.midiChannel ?? 0}
+                          onChange={(e) =>
+                            handleChannelChange(slot.id, parseInt(e.target.value, 10))
+                          }
+                        >
+                          {Array.from({ length: 16 }, (_, channel) => (
+                            <option key={channel} value={channel}>
+                              Channel {channel + 1}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                    <label>
+                      Repeat animation
+                      <select
+                        value={slot.animation}
+                        onChange={(e) =>
+                          handleAnimationChange(slot.id, e.target.value as SlotAnimation)
+                        }
+                      >
+                        {SLOT_ANIMATIONS.map((anim) => (
+                          <option key={anim.id} value={anim.id}>
+                            {anim.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Image search
+                      <input
+                        type="text"
+                        value={slot.searchTerm}
+                        onChange={(e) => handleSearchTermChange(slot.id, e.target.value)}
+                        placeholder="e.g. dog, star"
+                        disabled={Boolean(slot.uploadedImageUrl)}
+                      />
+                    </label>
+                    <label>
+                      Upload image
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload(slot.id, e.target.files?.[0])}
+                      />
+                      {slot.uploadedImageUrl && (
+                        <button
+                          type="button"
+                          className="btn-clear-upload"
+                          onClick={() => handleClearUpload(slot.id)}
+                        >
+                          Remove upload
+                        </button>
+                      )}
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-test-midi"
+                    disabled={!isSlotConfigured(slot)}
+                    onClick={() => handleTestSlot(slot)}
+                  >
+                    Test
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};

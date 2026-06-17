@@ -126,7 +126,6 @@ export const TeachingAssistantTasksSession: React.FC<TeachingAssistantTasksSessi
           id: job.id,
           title: job.title,
           description: job.description ?? '',
-          assignedTo: null,
           completed: false
         };
       });

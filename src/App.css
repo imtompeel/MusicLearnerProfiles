@@ -4164,3 +4164,388 @@ body {
     font-size: 1rem;
   }
 }
+
+/* Controller Image Play Session */
+.controller-image-session {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.controller-image-session.play-mode {
+  max-width: none;
+  padding: 0;
+  min-height: 100vh;
+}
+
+.controller-image-session.play-mode .session-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  padding: 12px 20px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.5), transparent);
+  color: white;
+}
+
+.controller-image-session.play-mode .session-header h2 {
+  color: white;
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.controller-play-stage {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, #1a1a2e, #16213e);
+  padding: 60px 20px 40px;
+}
+
+.play-mode-back {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 20;
+}
+
+.midi-image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 24px;
+  width: 100%;
+  max-width: 900px;
+  padding: 20px;
+}
+
+.midi-image-slot {
+  aspect-ratio: 1;
+  border-radius: 20px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.08);
+  border: 3px dashed rgba(255, 255, 255, 0.2);
+  transition: border-color 0.4s ease, background 0.4s ease, box-shadow 0.3s ease;
+}
+
+.midi-image-slot.hidden {
+  opacity: 0.35;
+}
+
+.midi-image-slot.hidden .midi-slot-placeholder {
+  font-size: 3rem;
+  color: rgba(255, 255, 255, 0.3);
+  font-weight: 700;
+}
+
+.midi-image-slot.revealed {
+  opacity: 1;
+  border-style: solid;
+  border-color: rgba(255, 255, 255, 0.6);
+  background: white;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.midi-image-slot .controller-slot-image {
+  width: 100%;
+  height: 100%;
+}
+
+.midi-slot-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.controller-slot-image {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.controller-slot-image.appearing,
+.controller-slot-image.anim-appear {
+  animation: midi-image-appear 0.5s ease-out;
+}
+
+.controller-slot-image.jiggling,
+.controller-slot-image.anim-jiggle {
+  animation: midi-image-jiggle 0.45s ease-in-out;
+}
+
+.controller-slot-image.anim-pulse {
+  animation: midi-image-pulse 0.5s ease-in-out;
+}
+
+.controller-slot-image.anim-shake {
+  animation: midi-image-shake 0.45s ease-in-out;
+}
+
+.controller-slot-image.anim-bounce {
+  animation: midi-image-bounce 0.55s ease-out;
+}
+
+.controller-slot-image.anim-spin {
+  animation: midi-image-spin 0.55s ease-in-out;
+}
+
+.controller-slot-image.anim-zoom {
+  animation: midi-image-zoom 0.45s ease-out;
+}
+
+.controller-slot-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 2.5rem;
+}
+
+.midi-image-slot .controller-slot-fallback {
+  font-size: 4rem;
+}
+
+.play-mode-hint {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.9rem;
+  margin-top: 16px;
+}
+
+@keyframes midi-image-appear {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  60% {
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes midi-image-jiggle {
+  0%, 100% {
+    transform: scale(1) rotate(0deg);
+  }
+  15% {
+    transform: scale(1.12) rotate(-4deg);
+  }
+  30% {
+    transform: scale(1.08) rotate(4deg);
+  }
+  45% {
+    transform: scale(1.14) rotate(-3deg);
+  }
+  60% {
+    transform: scale(1.06) rotate(3deg);
+  }
+  75% {
+    transform: scale(1.1) rotate(-2deg);
+  }
+}
+
+@keyframes midi-image-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+@keyframes midi-image-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-6px); }
+  80% { transform: translateX(6px); }
+}
+
+@keyframes midi-image-bounce {
+  0%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-18px); }
+  50% { transform: translateY(4px); }
+  70% { transform: translateY(-8px); }
+}
+
+@keyframes midi-image-spin {
+  0% { transform: rotate(0deg) scale(1); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+@keyframes midi-image-zoom {
+  0%, 100% { transform: scale(1); }
+  40% { transform: scale(1.25); }
+  70% { transform: scale(0.95); }
+}
+
+.controller-slot-setup {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  margin-top: 20px;
+}
+
+.controller-setup-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.controller-setup-header h3 {
+  margin: 0;
+}
+
+.controller-setup-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.controller-slot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.controller-slot-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 10px;
+  flex-wrap: wrap;
+}
+
+.controller-slot-preview {
+  width: 72px;
+  height: 72px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #e9ecef;
+  flex-shrink: 0;
+}
+
+.controller-slot-preview .controller-slot-image {
+  width: 100%;
+  height: 100%;
+}
+
+.controller-slot-preview .controller-slot-fallback {
+  font-size: 2rem;
+}
+
+.btn-clear-upload {
+  margin-top: 4px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+}
+
+.btn-clear-upload:hover {
+  background: #f5f5f5;
+}
+
+.controller-slot-fields {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  min-width: 200px;
+}
+
+.controller-slot-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #555;
+}
+
+.controller-slot-fields input {
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+
+.slot-label {
+  font-weight: 500;
+  color: #333;
+}
+
+.midi-note-hint {
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: #888;
+}
+
+.midi-devices {
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.midi-device-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.midi-device-list li {
+  background: #f0f4ff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+
+.midi-device-name {
+  font-weight: 500;
+  color: #333;
+}
+
+.midi-device-hint {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.controller-slot-fields select {
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background: white;
+}
+
+@media (max-width: 600px) {
+  .midi-image-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .controller-slot-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

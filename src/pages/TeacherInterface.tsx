@@ -14,6 +14,7 @@ import { HandGestureSession } from '../components/HandGestureSession';
 import { InstrumentLibrarySession } from '../components/InstrumentLibrarySession';
 import { TeachingAssistantTasksSession } from '../components/TeachingAssistantTasksSession';
 import { DocumentaryPlanningSession } from '../components/DocumentaryPlanningSession';
+import { ControllerImageSession } from '../components/ControllerImageSession';
 import { useStudentData } from '../hooks/useStudentData';
 import { useStatus } from '../hooks/useStatus';
 import { useAudio } from '../hooks/useAudio';
@@ -103,6 +104,16 @@ export const TeacherInterface: React.FC = () => {
     // Note: We don't clear currentClass here as the user might want to keep it selected
     // The ClassSelection component will handle clearing it when switching sessions
   };
+
+  // Render Controller Image Play if selected
+  if (currentSession === 'Controller Image Play') {
+    return (
+      <div className="container">
+        <ControllerImageSession onBack={handleBackToSessions} />
+        <Status message={status.message} type={status.type} />
+      </div>
+    );
+  }
 
   // Render Freesound Session if selected
   if (currentSession === 'Freesound Session') {

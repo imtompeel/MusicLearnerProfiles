@@ -170,6 +170,7 @@ export const ClassSelection: React.FC<ClassSelectionProps> = ({
   const activities = [
     { name: 'Music Who Are You?', icon: '🎵', requiresClass: true },
     { name: 'Freesound Session', icon: '🔊', requiresClass: false },
+    { name: 'Controller Image Play', icon: '🎛️', requiresClass: false },
     { name: 'My Creativity', icon: '🎨', requiresClass: true },
     { name: 'Class Planning Session', icon: '📋', requiresClass: true },
     { name: 'Sound Matching Session', icon: '🎯', requiresClass: true },
