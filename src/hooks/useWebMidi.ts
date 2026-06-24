@@ -23,6 +23,30 @@ export const isNetworkMidiDevice = (name?: string): boolean =>
 
 export const formatMidiChannel = (channel: number): string => `Channel ${channel + 1}`;
 
+export const formatMidiDeviceListLabel = (
+  device: MidiInputDevice,
+  devices: MidiInputDevice[]
+): string => {
+  const sameNameDevices = devices.filter((entry) => entry.name === device.name);
+  if (sameNameDevices.length <= 1) return device.name;
+
+  const index = sameNameDevices.findIndex((entry) => entry.id === device.id) + 1;
+  return `${device.name} (${index})`;
+};
+
+export const midiActivityKey = (event: MidiNoteEvent): string =>
+  isNetworkMidiDevice(event.deviceName)
+    ? `${event.deviceId}:${event.channel}`
+    : event.deviceId;
+
+export const isMidiDeviceActive = (
+  deviceId: string,
+  activeKeys: Record<string, boolean>
+): boolean => {
+  if (activeKeys[deviceId]) return true;
+  return Object.keys(activeKeys).some((key) => key.startsWith(`${deviceId}:`));
+};
+
 export function slotMatchesMidiEvent(
   deviceId: string,
   midiChannel: number | null,

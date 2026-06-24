@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { useWebMidi, isNetworkMidiDevice, slotMatchesMidiEvent, formatMidiChannel, type MidiNoteEvent } from '../hooks/useWebMidi';
+import { useWebMidi, isNetworkMidiDevice, slotMatchesMidiEvent, formatMidiChannel, formatMidiDeviceListLabel, isMidiDeviceActive, midiActivityKey, type MidiNoteEvent } from '../hooks/useWebMidi';
 import { useStatus } from '../hooks/useStatus';
 import { getPatternImageSources, getImageSource, clearPatternImageCache, type ImageSource } from '../utils/images';
-import { ControllerSlotImage } from './ControllerSlotImage';
+import { ControllerSlotImage, isAnimatedGifStoragePath, isAnimatedGifUrl } from './ControllerSlotImage';
 import {
   DEFAULT_SLOT_ANIMATION,
   SLOT_ANIMATIONS,
@@ -10,6 +10,7 @@ import {
 } from '../data/controllerAnimations';
 
 import {
+  compactSessionsForStorage,
   loadSavedControllerSessions,
   persistControllerSessions,
   type SavedControllerSession
@@ -17,8 +18,13 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import {
   deleteControllerSlotImage,
-  uploadControllerSlotImage
+  isGifFile,
+  primeControllerSlotImageBlobUrl,
+  uploadControllerSlotImage,
+  validateControllerUploadFile
 } from '../utils/controllerImageStorage';
+import { describeUploadFile, logControllerUpload } from '../utils/controllerUploadDebug';
+import { parseGifMetadataFromFile } from '../utils/gifDuration';
 
 interface ControllerImageSessionProps {
   onBack: () => void;
@@ -33,6 +39,9 @@ type ImageSlot = {
   midiChannel: number | null;
   uploadedImageUrl?: string;
   uploadedImageStoragePath?: string;
+  uploadedImageIsGif?: boolean;
+  uploadedGifPosterUrl?: string;
+  uploadedGifLoopDurationMs?: number;
   image?: ImageSource;
   animation: SlotAnimation;
   revealed: boolean;
@@ -42,12 +51,12 @@ type ImageSlot = {
 const IMAGE_SIZE = 240;
 
 const DEFAULT_SLOTS: Omit<ImageSlot, 'revealed' | 'triggerCount' | 'image' | 'deviceId' | 'deviceName' | 'midiChannel' | 'animation'>[] = [
-  { id: 'slot-1', label: 'Controller 1', searchTerm: 'dog' },
-  { id: 'slot-2', label: 'Controller 2', searchTerm: 'cat' },
-  { id: 'slot-3', label: 'Controller 3', searchTerm: 'star' },
-  { id: 'slot-4', label: 'Controller 4', searchTerm: 'rainbow' },
-  { id: 'slot-5', label: 'Controller 5', searchTerm: 'drum' },
-  { id: 'slot-6', label: 'Controller 6', searchTerm: 'balloon' }
+  { id: 'slot-1', label: 'Controller 1', searchTerm: 'drum' },
+  { id: 'slot-2', label: 'Controller 2', searchTerm: 'guitar' },
+  { id: 'slot-3', label: 'Controller 3', searchTerm: 'piano' },
+  { id: 'slot-4', label: 'Controller 4', searchTerm: 'trumpet' },
+  { id: 'slot-5', label: 'Controller 5', searchTerm: 'violin' },
+  { id: 'slot-6', label: 'Controller 6', searchTerm: 'flute' }
 ];
 
 const createInitialSlots = (): ImageSlot[] =>
@@ -64,6 +73,20 @@ const slotImageUrl = (slot: ImageSlot): string =>
   slot.uploadedImageUrl || slot.image?.url || '';
 
 const slotFallback = (slot: ImageSlot): string => slot.image?.fallback || '🖼️';
+
+const slotIsAnimatedGif = (slot: ImageSlot): boolean =>
+  Boolean(
+    slot.uploadedImageIsGif ||
+      isAnimatedGifUrl(slot.uploadedImageUrl) ||
+      isAnimatedGifStoragePath(slot.uploadedImageStoragePath)
+  );
+
+const slotGifImageProps = (slot: ImageSlot) => ({
+  isAnimatedGif: slotIsAnimatedGif(slot),
+  gifPosterUrl: slot.uploadedGifPosterUrl,
+  gifLoopDurationMs: slot.uploadedGifLoopDurationMs,
+  storagePath: slot.uploadedImageStoragePath
+});
 
 const slotAssignmentMatches = (
   slot: ImageSlot,
@@ -93,6 +116,9 @@ const toSavedSlots = (slots: ImageSlot[]) =>
       midiChannel,
       uploadedImageUrl,
       uploadedImageStoragePath,
+      uploadedImageIsGif,
+      uploadedGifPosterUrl,
+      uploadedGifLoopDurationMs,
       animation,
       image
     }) => ({
@@ -104,6 +130,9 @@ const toSavedSlots = (slots: ImageSlot[]) =>
       midiChannel,
       uploadedImageUrl,
       uploadedImageStoragePath,
+      uploadedImageIsGif,
+      uploadedGifPosterUrl,
+      uploadedGifLoopDurationMs,
       animation,
       image: uploadedImageUrl ? undefined : image
     })
@@ -118,12 +147,14 @@ const toPlaySlots = (saved: SavedControllerSession['slots']): ImageSlot[] =>
 
 export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ onBack }) => {
   const { user } = useAuth();
-  const { showSuccess, showError } = useStatus();
+  const { showSuccess, showError, showInfo } = useStatus();
   const [slots, setSlots] = useState<ImageSlot[]>(createInitialSlots);
   const [isPlayMode, setIsPlayMode] = useState(false);
   const [isLoadingImages, setIsLoadingImages] = useState(false);
   const [activeSlots, setActiveSlots] = useState<Record<string, boolean>>({});
+  const [activeMidiDevices, setActiveMidiDevices] = useState<Record<string, boolean>>({});
   const [savedSessions, setSavedSessions] = useState<SavedControllerSession[]>([]);
+  const [loadedSessionId, setLoadedSessionId] = useState<string | null>(null);
   const [sessionName, setSessionName] = useState('');
   const [reloadingSlots, setReloadingSlots] = useState<Record<string, boolean>>({});
   const [uploadingSlots, setUploadingSlots] = useState<Record<string, boolean>>({});
@@ -142,6 +173,8 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
   }, []);
 
   const handleNoteOn = useCallback((event: MidiNoteEvent) => {
+    setActiveMidiDevices((devices) => ({ ...devices, [midiActivityKey(event)]: true }));
+
     setSlots((prev) => {
       const slotIndex = prev.findIndex((slot) =>
         slotMatchesMidiEvent(slot.deviceId, slot.midiChannel, slot.deviceName, event)
@@ -163,6 +196,12 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
   }, [setSlotActive]);
 
   const handleNoteOff = useCallback((event: MidiNoteEvent) => {
+    setActiveMidiDevices((devices) => {
+      const next = { ...devices };
+      delete next[midiActivityKey(event)];
+      return next;
+    });
+
     setSlots((prev) => {
       const slotIndex = prev.findIndex((slot) =>
         slotMatchesMidiEvent(slot.deviceId, slot.midiChannel, slot.deviceName, event)
@@ -213,11 +252,22 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
   }, [applyImageSources, showSuccess, showError]);
 
   useEffect(() => {
+    const controller = new AbortController();
     const terms = DEFAULT_SLOTS.map((slot) => slot.searchTerm);
     setIsLoadingImages(true);
-    getPatternImageSources(terms, IMAGE_SIZE, IMAGE_SIZE)
-      .then(applyImageSources)
-      .finally(() => setIsLoadingImages(false));
+    getPatternImageSources(terms, IMAGE_SIZE, IMAGE_SIZE, { signal: controller.signal })
+      .then((sources) => {
+        if (!controller.signal.aborted) {
+          applyImageSources(sources);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsLoadingImages(false);
+        }
+      });
+
+    return () => controller.abort();
   }, [applyImageSources]);
 
   const handleSearchTermChange = (id: string, searchTerm: string) => {
@@ -234,6 +284,9 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
               searchTerm,
               uploadedImageUrl: undefined,
               uploadedImageStoragePath: undefined,
+              uploadedImageIsGif: undefined,
+              uploadedGifPosterUrl: undefined,
+              uploadedGifLoopDurationMs: undefined,
               image: undefined
             }
           : s
@@ -322,8 +375,31 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
   };
 
   const handleFileUpload = async (id: string, file: File | undefined) => {
-    if (!file) return;
+    logControllerUpload('handleFileUpload called', {
+      slotId: id,
+      file: describeUploadFile(file),
+      signedIn: Boolean(user),
+      userId: user?.uid ?? null
+    });
+
+    if (!file) {
+      logControllerUpload('abort: no file selected');
+      showError('No file was selected');
+      return;
+    }
+
+    const validationError = validateControllerUploadFile(file);
+    logControllerUpload('validation result', {
+      validationError,
+      isGif: isGifFile(file)
+    });
+    if (validationError) {
+      showError(validationError);
+      return;
+    }
+
     if (!user) {
+      logControllerUpload('abort: user not signed in');
       showError('Sign in to upload images to cloud storage');
       return;
     }
@@ -331,12 +407,35 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
     const existingSlot = slots.find((slot) => slot.id === id);
     const previousPath = existingSlot?.uploadedImageStoragePath;
 
+    logControllerUpload('starting upload', {
+      slotId: id,
+      previousPath: previousPath ?? null
+    });
+
     setUploadingSlots((prev) => ({ ...prev, [id]: true }));
+    showInfo(isGifFile(file) ? 'Uploading GIF…' : 'Uploading image…');
+
     try {
+      const uploadedImageIsGif = isGifFile(file);
+      const gifMetadata = uploadedImageIsGif ? await parseGifMetadataFromFile(file) : null;
+
       const { url, storagePath } = await uploadControllerSlotImage(user.uid, id, file);
 
+      logControllerUpload('upload succeeded', {
+        slotId: id,
+        storagePath,
+        urlPreview: url.slice(0, 120),
+        uploadedImageIsGif,
+        gifLoopDurationMs: gifMetadata?.loopDurationMs ?? null
+      });
+
       if (previousPath && previousPath !== storagePath) {
+        logControllerUpload('deleting previous upload', { previousPath });
         await deleteControllerSlotImage(previousPath);
+      }
+
+      if (uploadedImageIsGif) {
+        primeControllerSlotImageBlobUrl(storagePath, file);
       }
 
       setSlots((prev) =>
@@ -346,13 +445,20 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
                 ...slot,
                 uploadedImageUrl: url,
                 uploadedImageStoragePath: storagePath,
+                uploadedImageIsGif,
+                uploadedGifPosterUrl: gifMetadata?.posterDataUrl ?? undefined,
+                uploadedGifLoopDurationMs: gifMetadata?.loopDurationMs ?? undefined,
                 image: undefined
               }
             : slot
         )
       );
-      showSuccess('Image saved to cloud storage');
+      showSuccess(uploadedImageIsGif ? 'GIF saved to cloud storage' : 'Image saved to cloud storage');
     } catch (error) {
+      logControllerUpload('upload failed', {
+        slotId: id,
+        error: error instanceof Error ? { name: error.name, message: error.message } : error
+      });
       const message = error instanceof Error ? error.message : 'Failed to upload image';
       showError(message);
     } finally {
@@ -361,6 +467,7 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
         delete next[id];
         return next;
       });
+      logControllerUpload('upload finished', { slotId: id });
     }
   };
 
@@ -373,7 +480,15 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
     setSlots((prev) =>
       prev.map((s) =>
         s.id === id
-          ? { ...s, uploadedImageUrl: undefined, uploadedImageStoragePath: undefined, image: undefined }
+          ? {
+              ...s,
+              uploadedImageUrl: undefined,
+              uploadedImageStoragePath: undefined,
+              uploadedImageIsGif: undefined,
+              uploadedGifPosterUrl: undefined,
+              uploadedGifLoopDurationMs: undefined,
+              image: undefined
+            }
           : s
       )
     );
@@ -389,8 +504,24 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
   const handleReset = () => {
     setSlots(createInitialSlots());
     setActiveSlots({});
+    setLoadedSessionId(null);
+    setSessionName('');
     loadImages();
     showSuccess('Session reset — images hidden until played again');
+  };
+
+  const persistSessions = (sessions: SavedControllerSession[], successMessage: string) => {
+    try {
+      const updated = compactSessionsForStorage(sessions);
+      persistControllerSessions(updated);
+      setSavedSessions(updated);
+      showSuccess(successMessage);
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save session';
+      showError(message);
+      return false;
+    }
   };
 
   const handleSaveSession = () => {
@@ -402,21 +533,45 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
       slots: toSavedSlots(slots)
     };
 
-    try {
-      const updated = [...savedSessions, newSession];
-      persistControllerSessions(updated);
-      setSavedSessions(updated);
-      setSessionName('');
-      showSuccess(`Saved session "${trimmedName}"`);
-    } catch {
-      showError('Failed to save session');
+    if (
+      persistSessions([...savedSessions, newSession], `Saved session "${trimmedName}"`)
+    ) {
+      setLoadedSessionId(newSession.id);
     }
+  };
+
+  const handleUpdateSession = () => {
+    if (!loadedSessionId) return;
+
+    const existing = savedSessions.find((session) => session.id === loadedSessionId);
+    if (!existing) {
+      setLoadedSessionId(null);
+      setSessionName('');
+      showError('Loaded session no longer exists — save as a new session instead');
+      return;
+    }
+
+    const trimmedName = sessionName.trim() || existing.name;
+    const updatedSession: SavedControllerSession = {
+      ...existing,
+      name: trimmedName,
+      slots: toSavedSlots(slots)
+    };
+
+    persistSessions(
+      savedSessions.map((session) =>
+        session.id === loadedSessionId ? updatedSession : session
+      ),
+      `Updated session "${trimmedName}"`
+    );
   };
 
   const handleLoadSession = async (session: SavedControllerSession) => {
     const loadedSlots = toPlaySlots(session.slots);
     setSlots(loadedSlots);
     setActiveSlots({});
+    setLoadedSessionId(session.id);
+    setSessionName(session.name);
 
     const terms = loadedSlots
       .filter((slot) => !slot.uploadedImageUrl)
@@ -447,9 +602,13 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
   };
 
   const handleDeleteSession = (sessionId: string) => {
-    const updated = savedSessions.filter((session) => session.id !== sessionId);
+    const updated = compactSessionsForStorage(savedSessions.filter((session) => session.id !== sessionId));
     persistControllerSessions(updated);
     setSavedSessions(updated);
+    if (loadedSessionId === sessionId) {
+      setLoadedSessionId(null);
+      setSessionName('');
+    }
     showSuccess('Saved session deleted');
   };
 
@@ -522,6 +681,7 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
                     repeatAnimation={slot.animation}
                     isAnimating={Boolean(activeSlots[slot.id])}
                     isFirstReveal={slot.triggerCount === 1}
+                    {...slotGifImageProps(slot)}
                   />
                 ) : (
                   <span className="midi-slot-placeholder">?</span>
@@ -544,16 +704,47 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
               )}
             </div>
             {connectedInputs.length > 0 ? (
-              <ul className="midi-device-list">
-                {connectedInputs.map((device) => (
-                  <li key={device.id}>
-                    <span className="midi-device-name">{device.name}</span>
-                    {isNetworkMidiDevice(device.name) && (
-                      <span className="midi-device-hint"> — assign a channel per slot</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
+              <>
+                <p className="midi-instructions midi-device-picker-hint">
+                  Play each controller — the matching entry below lights up so you can tell identical
+                  names apart. Use the numbered name in the slot dropdown.
+                </p>
+                <div className="midi-device-grid">
+                  {connectedInputs.map((device) => {
+                    const isActive = isMidiDeviceActive(device.id, activeMidiDevices);
+                    const activeChannel =
+                      lastEvent?.deviceId === device.id && isNetworkMidiDevice(device.name)
+                        ? lastEvent.channel
+                        : null;
+
+                    return (
+                      <div
+                        key={device.id}
+                        className={[
+                          'midi-device-card',
+                          isActive ? 'midi-device-card-active' : ''
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                      >
+                        <span className="midi-device-name">
+                          {formatMidiDeviceListLabel(device, connectedInputs)}
+                        </span>
+                        {isNetworkMidiDevice(device.name) && (
+                          <span className="midi-device-hint">Assign a channel per slot</span>
+                        )}
+                        {isActive && (
+                          <span className="midi-device-playing">
+                            {activeChannel !== null
+                              ? `Playing · ${formatMidiChannel(activeChannel)}`
+                              : 'Playing now'}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             ) : (
               <p className="midi-instructions">
                 No MIDI inputs detected. Route each controller through MIDI Studio as a separate
@@ -586,12 +777,23 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
 
             <div className="controller-slot-list">
               {slots.map((slot) => (
-                <div key={slot.id} className="controller-slot-row">
+                <div
+                  key={slot.id}
+                  className={[
+                    'controller-slot-row',
+                    activeSlots[slot.id] ? 'controller-slot-row-active' : ''
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                >
                   <div className="controller-slot-preview">
                     <ControllerSlotImage
                       url={slotImageUrl(slot)}
                       alt={slot.label}
                       fallback={slotFallback(slot)}
+                      repeatAnimation={slot.animation}
+                      isAnimating={Boolean(activeSlots[slot.id])}
+                      {...slotGifImageProps(slot)}
                     />
                   </div>
                   <div className="controller-slot-fields">
@@ -610,7 +812,7 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
                           <option value="">— Select device —</option>
                           {connectedInputs.map((device) => (
                             <option key={device.id} value={device.id}>
-                              {device.name}
+                              {formatMidiDeviceListLabel(device, connectedInputs)}
                             </option>
                           ))}
                         </select>
@@ -668,7 +870,7 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
                           type="text"
                           value={slot.searchTerm}
                           onChange={(e) => handleSearchTermChange(slot.id, e.target.value)}
-                          placeholder="e.g. dog, star"
+                          placeholder="e.g. drum, guitar"
                           disabled={Boolean(slot.uploadedImageUrl)}
                         />
                         <button
@@ -683,14 +885,29 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
                       </div>
                     </label>
                     <label>
-                      Upload image
+                      Upload image or GIF
                       <input
                         type="file"
-                        accept="image/*"
+                        accept="image/jpeg,image/png,image/gif,image/webp,image/*,.gif"
                         disabled={uploadingSlots[slot.id]}
                         onChange={(e) => {
-                          void handleFileUpload(slot.id, e.target.files?.[0]);
-                          e.target.value = '';
+                          const input = e.currentTarget;
+                          const fileList = input.files;
+                          const selected = fileList?.[0];
+
+                          logControllerUpload('file input change', {
+                            slotId: slot.id,
+                            fileCount: fileList?.length ?? 0,
+                            file: describeUploadFile(selected),
+                            accept: input.accept,
+                            disabled: input.disabled
+                          });
+
+                          void handleFileUpload(slot.id, selected);
+                          input.value = '';
+                        }}
+                        onClick={() => {
+                          logControllerUpload('file input clicked', { slotId: slot.id });
                         }}
                       />
                       {uploadingSlots[slot.id] && (
@@ -722,6 +939,11 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
 
           <div className="preset-section controller-sessions-section">
             <h3>💾 Saved sessions</h3>
+            {loadedSessionId && (
+              <p className="controller-session-editing-hint">
+                Editing loaded session — use <strong>Update session</strong> to save your changes.
+              </p>
+            )}
             <div className="preset-save-row">
               <input
                 type="text"
@@ -730,14 +952,27 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
                 placeholder="Name this setup (e.g. Year 5 CMPSR)"
                 className="preset-name-input"
               />
+              {loadedSessionId && (
+                <button type="button" className="btn-update-preset" onClick={handleUpdateSession}>
+                  Update session
+                </button>
+              )}
               <button type="button" className="btn-save-preset" onClick={handleSaveSession}>
-                Save session
+                {loadedSessionId ? 'Save as new' : 'Save session'}
               </button>
             </div>
             {savedSessions.length > 0 ? (
               <div className="preset-list">
                 {savedSessions.map((session) => (
-                  <div key={session.id} className="preset-item">
+                  <div
+                    key={session.id}
+                    className={[
+                      'preset-item',
+                      loadedSessionId === session.id ? 'preset-item-active' : ''
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                  >
                     <div className="preset-info">
                       <strong>{session.name}</strong>
                       <span className="preset-meta">

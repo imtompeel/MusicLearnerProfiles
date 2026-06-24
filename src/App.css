@@ -1544,6 +1544,36 @@ body {
     cursor: not-allowed;
 }
 
+.btn-update-preset {
+    background: linear-gradient(145deg, #f39c12, #e67e22);
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    white-space: nowrap;
+    transition: all 0.3s ease;
+}
+
+.btn-update-preset:hover {
+    background: linear-gradient(145deg, #e67e22, #d35400);
+    transform: translateY(-1px);
+}
+
+.controller-session-editing-hint {
+    margin: 0 0 12px;
+    text-align: center;
+    font-size: 0.9rem;
+    color: #7f8c8d;
+}
+
+.preset-item-active {
+    border-color: #f39c12;
+    background: #fff8ef;
+    box-shadow: 0 0 0 1px rgba(243, 156, 18, 0.15);
+}
+
 .preset-list {
     display: flex;
     flex-direction: column;
@@ -4265,6 +4295,13 @@ body {
   display: block;
 }
 
+.controller-slot-image.is-gif .slot-gif-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .controller-slot-image {
   width: 100%;
   height: 100%;
@@ -4426,6 +4463,14 @@ body {
   margin-top: 20px;
 }
 
+.controller-sessions-section .preset-info strong {
+  color: #2c3e50;
+}
+
+.controller-sessions-section .preset-meta {
+  color: #5d6d7e;
+}
+
 .controller-setup-header {
   display: flex;
   flex-wrap: wrap;
@@ -4459,6 +4504,14 @@ body {
   background: #f8f9fa;
   border-radius: 10px;
   flex-wrap: wrap;
+  border: 2px solid transparent;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.controller-slot-row-active {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+  background: #f0f4ff;
 }
 
 .controller-slot-preview {
@@ -4533,30 +4586,52 @@ body {
   color: #555;
 }
 
-.midi-device-list {
-  list-style: none;
-  padding: 0;
+.midi-device-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
   margin: 12px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
 }
 
-.midi-device-list li {
+.midi-device-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   background: #f0f4ff;
-  padding: 8px 12px;
-  border-radius: 6px;
+  padding: 10px 12px;
+  border-radius: 8px;
   font-size: 0.95rem;
+  border: 2px solid #e0e8ff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.midi-device-card-active {
+  border-color: #667eea;
+  background: #e8eeff;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.25);
+}
+
+.midi-device-playing {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #4c5fd7;
+}
+
+.midi-device-picker-hint {
+  margin-bottom: 4px;
 }
 
 .midi-device-name {
   font-weight: 500;
   color: #333;
+  line-height: 1.3;
+  word-break: break-word;
 }
 
 .midi-device-hint {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: #666;
+  line-height: 1.3;
 }
 
 .controller-slot-fields select {
