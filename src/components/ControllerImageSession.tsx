@@ -48,7 +48,7 @@ type ImageSlot = {
   triggerCount: number;
 };
 
-const IMAGE_SIZE = 240;
+const IMAGE_SIZE = 480;
 
 const DEFAULT_SLOTS: Omit<ImageSlot, 'revealed' | 'triggerCount' | 'image' | 'deviceId' | 'deviceName' | 'midiChannel' | 'animation'>[] = [
   { id: 'slot-1', label: 'Controller 1', searchTerm: 'drum' },
@@ -56,7 +56,10 @@ const DEFAULT_SLOTS: Omit<ImageSlot, 'revealed' | 'triggerCount' | 'image' | 'de
   { id: 'slot-3', label: 'Controller 3', searchTerm: 'piano' },
   { id: 'slot-4', label: 'Controller 4', searchTerm: 'trumpet' },
   { id: 'slot-5', label: 'Controller 5', searchTerm: 'violin' },
-  { id: 'slot-6', label: 'Controller 6', searchTerm: 'flute' }
+  { id: 'slot-6', label: 'Controller 6', searchTerm: 'flute' },
+  { id: 'slot-7', label: 'Controller 7', searchTerm: 'saxophone' },
+  { id: 'slot-8', label: 'Controller 8', searchTerm: 'cello' },
+  { id: 'slot-9', label: 'Controller 9', searchTerm: 'harp' }
 ];
 
 const createInitialSlots = (): ImageSlot[] =>
@@ -617,8 +620,10 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
     simulateDevice(slot.deviceId, slot.deviceName, slot.midiChannel ?? 0);
   };
 
-  const assignedSlots = slots.filter(isSlotConfigured);
-  const playSlots = assignedSlots.length > 0 ? assignedSlots : slots;
+  const playSlots = slots.filter(isSlotConfigured);
+  const playSlotCount = playSlots.length;
+  const playGridCols = playSlotCount <= 1 ? 1 : playSlotCount === 2 ? 2 : 3;
+  const playGridRows = playSlotCount > 0 ? Math.ceil(playSlotCount / playGridCols) : 1;
 
   const formatLastEvent = () => {
     if (!lastEvent) return '';
@@ -632,7 +637,15 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
   return (
     <div className={`controller-image-session ${isPlayMode ? 'play-mode' : ''}`}>
       <div className="session-header">
-        {!isPlayMode && (
+        {isPlayMode ? (
+          <button
+            className="btn-back play-mode-back"
+            onClick={() => setIsPlayMode(false)}
+            type="button"
+          >
+            ← Setup
+          </button>
+        ) : (
           <button className="btn-back" onClick={onBack} type="button">
             ← Back to Sessions
           </button>
@@ -659,35 +672,43 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
 
       {isPlayMode ? (
         <div className="controller-play-stage">
-          <button
-            className="btn-back play-mode-back"
-            onClick={() => setIsPlayMode(false)}
-            type="button"
+          <div
+            className="midi-image-grid"
+            data-slot-count={playSlotCount}
+            style={
+              {
+                '--play-cols': playGridCols,
+                '--play-rows': playGridRows
+              } as React.CSSProperties
+            }
           >
-            ← Setup
-          </button>
-          <div className="midi-image-grid">
-            {playSlots.map((slot) => (
-              <div
-                key={slot.id}
-                className={['midi-image-slot', slot.revealed ? 'revealed' : 'hidden'].join(' ')}
-              >
-                {slot.revealed ? (
-                  <ControllerSlotImage
-                    url={slotImageUrl(slot)}
-                    alt={slot.image?.alt || slot.label}
-                    fallback={slotFallback(slot)}
-                    imageClassName="midi-slot-image"
-                    repeatAnimation={slot.animation}
-                    isAnimating={Boolean(activeSlots[slot.id])}
-                    isFirstReveal={slot.triggerCount === 1}
-                    {...slotGifImageProps(slot)}
-                  />
-                ) : (
-                  <span className="midi-slot-placeholder">?</span>
-                )}
-              </div>
-            ))}
+            {playSlots.length === 0 ? (
+              <p className="play-mode-empty">
+                No controllers assigned yet — switch to setup and pick a MIDI device for each slot.
+              </p>
+            ) : (
+              playSlots.map((slot) => (
+                <div
+                  key={slot.id}
+                  className={['midi-image-slot', slot.revealed ? 'revealed' : 'hidden'].join(' ')}
+                >
+                  {slot.revealed ? (
+                    <ControllerSlotImage
+                      url={slotImageUrl(slot)}
+                      alt={slot.image?.alt || slot.label}
+                      fallback={slotFallback(slot)}
+                      imageClassName="midi-slot-image"
+                      repeatAnimation={slot.animation}
+                      isAnimating={Boolean(activeSlots[slot.id])}
+                      isFirstReveal={slot.triggerCount === 1}
+                      {...slotGifImageProps(slot)}
+                    />
+                  ) : (
+                    <span className="midi-slot-placeholder">?</span>
+                  )}
+                </div>
+              ))
+            )}
           </div>
           {lastEvent && <p className="play-mode-hint">Last played: {formatLastEvent()}</p>}
         </div>
