@@ -15,6 +15,7 @@ import { InstrumentLibrarySession } from '../components/InstrumentLibrarySession
 import { TeachingAssistantTasksSession } from '../components/TeachingAssistantTasksSession';
 import { DocumentaryPlanningSession } from '../components/DocumentaryPlanningSession';
 import { ControllerImageSession } from '../components/ControllerImageSession';
+import { ColourTrackerSession } from '../components/ColourTrackerSession';
 import { useStudentData } from '../hooks/useStudentData';
 import { useStatus } from '../hooks/useStatus';
 import { useAudio } from '../hooks/useAudio';
@@ -180,6 +181,16 @@ export const TeacherInterface: React.FC = () => {
     return (
       <div className="container">
         <HandGestureSession onBack={handleBackToSessions} />
+        <Status message={status.message} type={status.type} />
+      </div>
+    );
+  }
+
+  // Render Colour Tracker Session if selected
+  if (currentSession === 'Colour Tracker Session') {
+    return (
+      <div className="container">
+        <ColourTrackerSession onBack={handleBackToSessions} />
         <Status message={status.message} type={status.type} />
       </div>
     );

@@ -10,6 +10,8 @@
     "preview": "vite preview",
     "deploy": "npm run build && npx -y firebase-tools deploy",
     "deploy:hosting": "npm run build && npx -y firebase-tools deploy --only hosting",
+    "deploy:storage": "npx -y firebase-tools deploy --only storage",
+    "deploy:rules": "npx -y firebase-tools deploy --only storage,firestore",
     "deploy:storage:cors": "bash scripts/apply-storage-cors.sh"
   },
   "dependencies": {
