@@ -46,6 +46,13 @@ type ImageSlot = {
   animation: SlotAnimation;
   revealed: boolean;
   triggerCount: number;
+  channelTakenAway?: boolean;
+};
+
+type ChannelConflict = {
+  slotId: string;
+  channel: number;
+  blockedBySlotId: string;
 };
 
 const IMAGE_SIZE = 480;
@@ -161,6 +168,9 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
   const [sessionName, setSessionName] = useState('');
   const [reloadingSlots, setReloadingSlots] = useState<Record<string, boolean>>({});
   const [uploadingSlots, setUploadingSlots] = useState<Record<string, boolean>>({});
+  const [pendingChannelConflict, setPendingChannelConflict] = useState<ChannelConflict | null>(
+    null
+  );
 
   useEffect(() => {
     setSavedSessions(loadSavedControllerSessions());
@@ -302,25 +312,37 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
     const deviceName = device?.name;
     const network = isNetworkMidiDevice(deviceName);
 
+    setPendingChannelConflict((conflict) => (conflict?.slotId === id ? null : conflict));
+
     setSlots((prev) => {
       const target = prev.find((slot) => slot.id === id);
       const newChannel = network ? (target?.midiChannel ?? 0) : null;
+      const conflict = deviceId
+        ? prev.find(
+            (slot) =>
+              slot.id !== id &&
+              slotAssignmentMatches(slot, deviceId, newChannel, deviceName)
+          )
+        : undefined;
 
       return prev.map((slot) => {
         if (slot.id === id) {
           if (!deviceId) {
-            return { ...slot, deviceId: '', deviceName: undefined, midiChannel: null };
+            return {
+              ...slot,
+              deviceId: '',
+              deviceName: undefined,
+              midiChannel: null,
+              channelTakenAway: false
+            };
           }
           return {
             ...slot,
             deviceId,
             deviceName,
-            midiChannel: network ? slot.midiChannel ?? 0 : null
+            midiChannel: network ? slot.midiChannel ?? 0 : null,
+            channelTakenAway: Boolean(conflict)
           };
-        }
-
-        if (deviceId && slotAssignmentMatches(slot, deviceId, newChannel, deviceName)) {
-          return { ...slot, deviceId: '', deviceName: undefined, midiChannel: null };
         }
 
         return slot;
@@ -330,24 +352,46 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
 
   const handleChannelChange = (id: string, midiChannel: number) => {
     if (midiChannel < 0 || midiChannel > 15) return;
-    setSlots((prev) => {
-      const target = prev.find((slot) => slot.id === id);
-      if (!target?.deviceId) return prev;
 
-      return prev.map((slot) => {
-        if (slot.id === id) {
-          return { ...slot, midiChannel };
-        }
-        if (
-          slot.deviceId === target.deviceId &&
-          slot.midiChannel === midiChannel &&
-          isNetworkMidiDevice(target.deviceName)
-        ) {
-          return { ...slot, deviceId: '', deviceName: undefined, midiChannel: null };
-        }
-        return slot;
+    const target = slots.find((slot) => slot.id === id);
+    if (!target?.deviceId || !isNetworkMidiDevice(target.deviceName)) return;
+
+    const conflict = slots.find(
+      (slot) =>
+        slot.id !== id &&
+        slot.deviceId === target.deviceId &&
+        slot.midiChannel === midiChannel
+    );
+
+    if (conflict) {
+      setPendingChannelConflict({
+        slotId: id,
+        channel: midiChannel,
+        blockedBySlotId: conflict.id
       });
-    });
+      return;
+    }
+
+    setPendingChannelConflict(null);
+    setSlots((prev) =>
+      prev.map((slot) =>
+        slot.id === id ? { ...slot, midiChannel, channelTakenAway: false } : slot
+      )
+    );
+  };
+
+  const handleChannelOverride = () => {
+    if (!pendingChannelConflict) return;
+
+    const { slotId, channel } = pendingChannelConflict;
+    setSlots((prev) =>
+      prev.map((slot) =>
+        slot.id === slotId
+          ? { ...slot, midiChannel: channel, channelTakenAway: true }
+          : slot
+      )
+    );
+    setPendingChannelConflict(null);
   };
 
   const handleReloadSlotImage = async (id: string) => {
@@ -509,6 +553,7 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
     setActiveSlots({});
     setLoadedSessionId(null);
     setSessionName('');
+    setPendingChannelConflict(null);
     loadImages();
     showSuccess('Session reset — images hidden until played again');
   };
@@ -797,12 +842,21 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
             </div>
 
             <div className="controller-slot-list">
-              {slots.map((slot) => (
+              {slots.map((slot) => {
+                const channelConflict =
+                  pendingChannelConflict?.slotId === slot.id ? pendingChannelConflict : null;
+                const blockedSlot = channelConflict
+                  ? slots.find((entry) => entry.id === channelConflict.blockedBySlotId)
+                  : undefined;
+
+                return (
                 <div
                   key={slot.id}
                   className={[
                     'controller-slot-row',
-                    activeSlots[slot.id] ? 'controller-slot-row-active' : ''
+                    activeSlots[slot.id] ? 'controller-slot-row-active' : '',
+                    channelConflict ? 'controller-slot-row-conflict' : '',
+                    slot.channelTakenAway ? 'controller-slot-row-taken' : ''
                   ]
                     .filter(Boolean)
                     .join(' ')}
@@ -838,29 +892,57 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
                           ))}
                         </select>
                         {isNetworkMidiDevice(slot.deviceName) && (
-                          <div className="midi-channel-stepper" title="MIDI channel">
+                          <div
+                            className={[
+                              'midi-channel-stepper',
+                              channelConflict ? 'midi-channel-stepper-conflict' : ''
+                            ]
+                              .filter(Boolean)
+                              .join(' ')}
+                            title="MIDI channel"
+                          >
                             <span className="midi-channel-label">Ch</span>
                             <button
                               type="button"
                               className="midi-channel-chevron"
                               aria-label="Previous channel"
-                              disabled={(slot.midiChannel ?? 0) <= 0}
+                              disabled={
+                                channelConflict
+                                  ? channelConflict.channel <= 0
+                                  : (slot.midiChannel ?? 0) <= 0
+                              }
                               onClick={() =>
-                                handleChannelChange(slot.id, (slot.midiChannel ?? 0) - 1)
+                                handleChannelChange(
+                                  slot.id,
+                                  channelConflict
+                                    ? channelConflict.channel - 1
+                                    : (slot.midiChannel ?? 0) - 1
+                                )
                               }
                             >
                               ▲
                             </button>
                             <span className="midi-channel-value">
-                              {(slot.midiChannel ?? 0) + 1}
+                              {channelConflict
+                                ? channelConflict.channel + 1
+                                : (slot.midiChannel ?? 0) + 1}
                             </span>
                             <button
                               type="button"
                               className="midi-channel-chevron"
                               aria-label="Next channel"
-                              disabled={(slot.midiChannel ?? 0) >= 15}
+                              disabled={
+                                channelConflict
+                                  ? channelConflict.channel >= 15
+                                  : (slot.midiChannel ?? 0) >= 15
+                              }
                               onClick={() =>
-                                handleChannelChange(slot.id, (slot.midiChannel ?? 0) + 1)
+                                handleChannelChange(
+                                  slot.id,
+                                  channelConflict
+                                    ? channelConflict.channel + 1
+                                    : (slot.midiChannel ?? 0) + 1
+                                )
                               }
                             >
                               ▼
@@ -868,6 +950,27 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
                           </div>
                         )}
                       </div>
+                      {channelConflict && (
+                        <div className="controller-slot-channel-conflict" role="alert">
+                          <p>
+                            Slot already taken —{' '}
+                            <strong>{blockedSlot?.label ?? 'Another slot'}</strong> uses{' '}
+                            {formatMidiChannel(channelConflict.channel)}.
+                          </p>
+                          <button
+                            type="button"
+                            className="btn-channel-override"
+                            onClick={handleChannelOverride}
+                          >
+                            Override
+                          </button>
+                        </div>
+                      )}
+                      {slot.channelTakenAway && !channelConflict && (
+                        <p className="controller-slot-taken-notice" role="status">
+                          Channel overridden — this slot took a channel already assigned elsewhere.
+                        </p>
+                      )}
                     </label>
                     <label>
                       Repeat animation
@@ -954,7 +1057,8 @@ export const ControllerImageSession: React.FC<ControllerImageSessionProps> = ({ 
                     Test
                   </button>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

@@ -4565,6 +4565,55 @@ body {
   background: #f0f4ff;
 }
 
+.controller-slot-row-conflict {
+  border-color: #e74c3c;
+  background: #fff5f5;
+  box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.18);
+}
+
+.controller-slot-row-taken {
+  border-color: #e74c3c;
+  background: #ffeaea;
+  box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.22);
+}
+
+.controller-slot-channel-conflict {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fdecea;
+  border: 1px solid #f5b7b1;
+  color: #922b21;
+}
+
+.controller-slot-channel-conflict p {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.btn-channel-override {
+  background: linear-gradient(145deg, #e74c3c, #c0392b);
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.btn-channel-override:hover {
+  background: linear-gradient(145deg, #c0392b, #a93226);
+}
+
+.controller-slot-taken-notice {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #c0392b;
+}
+
 .controller-slot-preview {
   width: 72px;
   height: 72px;
@@ -4734,6 +4783,15 @@ body {
   background: white;
   height: 36px;
   box-sizing: border-box;
+}
+
+.midi-channel-stepper-conflict {
+  border-color: #e74c3c;
+  background: #fff5f5;
+}
+
+.midi-channel-stepper-conflict .midi-channel-value {
+  color: #c0392b;
 }
 
 .midi-channel-label {
