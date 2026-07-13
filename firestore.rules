@@ -28,6 +28,14 @@ service cloud.firestore {
         && resource.data.ownerUid == request.auth.uid;
     }
 
+    // Auto scroll saved texts — owner only
+    match /auto_scroll_texts/{textId} {
+      allow create: if request.auth != null
+        && request.resource.data.ownerUid == request.auth.uid;
+      allow read, update, delete: if request.auth != null
+        && resource.data.ownerUid == request.auth.uid;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

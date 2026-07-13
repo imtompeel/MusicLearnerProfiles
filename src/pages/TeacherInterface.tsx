@@ -16,6 +16,7 @@ import { TeachingAssistantTasksSession } from '../components/TeachingAssistantTa
 import { DocumentaryPlanningSession } from '../components/DocumentaryPlanningSession';
 import { ControllerImageSession } from '../components/ControllerImageSession';
 import { ColourTrackerSession } from '../components/ColourTrackerSession';
+import { AutoScrollSession } from '../components/AutoScrollSession';
 import { useStudentData } from '../hooks/useStudentData';
 import { useStatus } from '../hooks/useStatus';
 import { useAudio } from '../hooks/useAudio';
@@ -236,6 +237,16 @@ export const TeacherInterface: React.FC = () => {
     return (
       <div className="container">
         <DocumentaryPlanningSession onBack={handleBackToSessions} />
+        <Status message={status.message} type={status.type} />
+      </div>
+    );
+  }
+
+  // Render Auto Scroll if selected
+  if (currentSession === 'Auto Scroll') {
+    return (
+      <div className="container">
+        <AutoScrollSession onBack={handleBackToSessions} />
         <Status message={status.message} type={status.type} />
       </div>
     );

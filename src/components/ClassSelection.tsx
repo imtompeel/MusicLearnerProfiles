@@ -180,7 +180,8 @@ export const ClassSelection: React.FC<ClassSelectionProps> = ({
     { name: 'Colour Tracker Session', icon: '🌈', requiresClass: false },
     { name: 'Instrument Library', icon: '🎺', requiresClass: false },
     { name: 'Teaching Assistant Tasks', icon: '🧑‍🏫', requiresClass: false },
-    { name: 'Documentary Planning', icon: '🎬', requiresClass: false }
+    { name: 'Documentary Planning', icon: '🎬', requiresClass: false },
+    { name: 'Auto Scroll', icon: '📜', requiresClass: false }
   ];
 
   return (
